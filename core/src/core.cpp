@@ -218,6 +218,7 @@ int sdrpp_main(int argc, char* argv[]) {
 
     defConfig["moduleInstances"]["Frequency Manager"] = "frequency_manager";
     defConfig["moduleInstances"]["Recorder"] = "recorder";
+    defConfig["moduleInstances"]["RF Tools"] = "rf_tools";
     defConfig["moduleInstances"]["Rigctl Server"] = "rigctl_server";
     // defConfig["moduleInstances"]["Rigctl Client"] = "rigctl_client";
     // TODO: Enable rigctl_client when ready
