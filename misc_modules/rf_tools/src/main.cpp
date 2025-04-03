@@ -8,6 +8,8 @@
 #include <thread>
 #include <atomic>
 #include "pdw/pulse_detector.h"
+#include "pdw/pulse_extractor.h"
+#include "ui/pdw_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -28,6 +30,14 @@ public:
         vfo = sigpath::vfoManager.createVFO(name, ImGui::WaterfallVFO::REF_CENTER, 0.0, defaultBw, defaultSr, 50000.0, 10000000.0, false);
 
         detector.init(defaultSr, -40.0f, 0.5e-6, 1000.0e-6);
+        extractor.init(defaultSr, 0.0);
+
+        detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
+            double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
+            extractor.setCenterFrequency(currentCf);
+            rf_tools::PDW pdw = extractor.extract(rawPulse);
+            pdwPanel.addPDW(pdw);
+        });
 
         startWorker();
         gui::menu.registerEntry(name, menuHandler, this, this);
@@ -103,6 +113,7 @@ private:
             // Check if VFO sample rate or bandwidth changed
             double currentBw = vfo->getBandwidth();
             detector.setSampleRate(currentBw);
+            extractor.setSampleRate(currentBw);
 
             detector.process(vfo->output->readBuf, count);
             vfo->output->flush();
@@ -115,44 +126,10 @@ private:
 
         double centerFreq = gui::waterfall.getCenterFrequency() + (mod->vfo ? mod->vfo->getOffset() : 0.0);
         double vfoBw = mod->vfo ? mod->vfo->getBandwidth() : 0.0;
-        float menuWidth = ImGui::GetContentRegionAvail().x;
 
         if (ImGui::BeginTabBar("##rf_tools_tabs")) {
             if (ImGui::BeginTabItem("Pulse / PDW")) {
-                ImGui::Spacing();
-                ImGui::Text("VFO: CF = %.3f MHz | BW = %.3f MHz", centerFreq / 1.0e6, vfoBw / 1.0e6);
-                ImGui::Separator();
-
-                float thresh = mod->detector.getThreshold();
-                ImGui::LeftLabel("Threshold (dBFS)");
-                ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
-                if (ImGui::SliderFloat("##rf_pdw_thresh", &thresh, -100.0f, -5.0f, "%.1f dBFS")) {
-                    mod->detector.setThreshold(thresh);
-                }
-
-                float minPwUs = static_cast<float>(mod->detector.getMinPulseWidth() * 1.0e6);
-                ImGui::LeftLabel("Min PW (us)");
-                ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
-                if (ImGui::SliderFloat("##rf_pdw_min_pw", &minPwUs, 0.1f, 50.0f, "%.2f us")) {
-                    mod->detector.setPulseWidthLimits(minPwUs * 1.0e-6, mod->detector.getMaxPulseWidth());
-                }
-
-                float maxPwUs = static_cast<float>(mod->detector.getMaxPulseWidth() * 1.0e6);
-                ImGui::LeftLabel("Max PW (us)");
-                ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
-                if (ImGui::SliderFloat("##rf_pdw_max_pw", &maxPwUs, 10.0f, 2000.0f, "%.1f us")) {
-                    mod->detector.setPulseWidthLimits(mod->detector.getMinPulseWidth(), maxPwUs * 1.0e-6);
-                }
-
-                ImGui::Spacing();
-                ImGui::Text("Detected Pulses: %llu", (unsigned long long)mod->detector.getTotalPulses());
-
-                if (ImGui::Button("Reset Counter##rf_pdw_reset")) {
-                    mod->detector.reset();
-                }
-
-                ImGui::Separator();
-                ImGui::TextColored(ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "Milestone 1 Active: Real-time Pulse Detection");
+                mod->pdwPanel.draw(mod->detector, centerFreq, vfoBw);
                 ImGui::EndTabItem();
             }
 
@@ -160,6 +137,7 @@ private:
                 ImGui::Spacing();
                 ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "PRI, PW & RF Distribution Histograms");
                 ImGui::Separator();
+                ImGui::Text("Tracking detected pulses: %zu", mod->pdwPanel.getTotalPulsesDetected());
                 ImGui::TextUnformatted("(Upcoming Milestone 3: PRI Stagger & Jitter Analysis)");
                 ImGui::EndTabItem();
             }
@@ -181,6 +159,8 @@ private:
     VFOManager::VFO* vfo = nullptr;
 
     rf_tools::PulseDetector detector;
+    rf_tools::PulseExtractor extractor;
+    rf_tools::PDWPanel pdwPanel;
 
     std::thread workerThread;
     std::atomic<bool> running{ false };
