@@ -9,7 +9,9 @@
 #include <atomic>
 #include "pdw/pulse_detector.h"
 #include "pdw/pulse_extractor.h"
+#include "pri/pri_analyzer.h"
 #include "ui/pdw_panel.h"
+#include "ui/histogram_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -31,12 +33,15 @@ public:
 
         detector.init(defaultSr, -40.0f, 0.5e-6, 1000.0e-6);
         extractor.init(defaultSr, 0.0);
+        priAnalyzer.init(256);
 
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
             double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
             extractor.setCenterFrequency(currentCf);
             rf_tools::PDW pdw = extractor.extract(rawPulse);
             pdwPanel.addPDW(pdw);
+            priAnalyzer.addPulse(pdw);
+            histogramPanel.addPDW(pdw);
         });
 
         startWorker();
@@ -134,11 +139,7 @@ private:
             }
 
             if (ImGui::BeginTabItem("Histograms")) {
-                ImGui::Spacing();
-                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "PRI, PW & RF Distribution Histograms");
-                ImGui::Separator();
-                ImGui::Text("Tracking detected pulses: %zu", mod->pdwPanel.getTotalPulsesDetected());
-                ImGui::TextUnformatted("(Upcoming Milestone 3: PRI Stagger & Jitter Analysis)");
+                mod->histogramPanel.draw(mod->priAnalyzer);
                 ImGui::EndTabItem();
             }
 
@@ -160,7 +161,9 @@ private:
 
     rf_tools::PulseDetector detector;
     rf_tools::PulseExtractor extractor;
+    rf_tools::PRIAnalyzer priAnalyzer;
     rf_tools::PDWPanel pdwPanel;
+    rf_tools::HistogramPanel histogramPanel;
 
     std::thread workerThread;
     std::atomic<bool> running{ false };
