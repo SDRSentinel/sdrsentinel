@@ -11,7 +11,8 @@ namespace rf_tools {
     void PRIAnalyzer::init(size_t historySize) {
         std::lock_guard<std::mutex> lock(_mutex);
         _historySize = historySize;
-        clear();
+        _priHistory.clear();
+        _cachedStats = PRIStats();
     }
 
     void PRIAnalyzer::clear() {

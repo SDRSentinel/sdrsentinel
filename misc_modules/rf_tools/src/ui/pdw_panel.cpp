@@ -47,7 +47,7 @@ namespace rf_tools {
                 << std::fixed << std::setprecision(2) << p.noiseFloor << ","
                 << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << "\n";
         }
-        flog::info("Exported {0} PDW entries to {1}", _recentPdws.size(), filepath);
+        flog::info("Exported {0} PDW entries to {1}", (uint64_t)_recentPdws.size(), filepath);
     }
 
     void PDWPanel::draw(PulseDetector& detector, double centerFreq, double vfoBw) {

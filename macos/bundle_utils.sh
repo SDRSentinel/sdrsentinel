@@ -17,6 +17,7 @@ bundle_is_not_to_be_installed() {
     if [ "$1" = "CoreFoundation" ]; then echo 1; fi
     if [ "$1" = "AppKit" ]; then echo 1; fi
     if [ "$1" = "CoreGraphics" ]; then echo 1; fi
+    if [ "$1" = "QuartzCore" ]; then echo 1; fi
     if [ "$1" = "CoreServices" ]; then echo 1; fi
     if [ "$1" = "Foundation" ]; then echo 1; fi
     if [ "$1" = "CoreAudio" ]; then echo 1; fi
