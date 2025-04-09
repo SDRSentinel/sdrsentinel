@@ -114,7 +114,7 @@ namespace rf_tools {
         PRIStats stats = priAnalyzer.getStats();
 
         // 1. Radar PRI Classification Header
-        ImGui::Text("Radar Sinyal Modülasyon Sınıflandırması:");
+        ImGui::Text("Radar signal modulation classification:");
         ImVec4 modColor(0.8f, 0.8f, 0.8f, 1.0f);
         if (stats.modulation == PRIModulation::CONSTANT) {
             modColor = ImVec4(0.2f, 1.0f, 0.3f, 1.0f); // Green
@@ -124,14 +124,14 @@ namespace rf_tools {
             modColor = ImVec4(1.0f, 0.7f, 0.2f, 1.0f); // Orange
         }
 
-        ImGui::TextColored(modColor, "Tip: %s", PRIAnalyzer::getModulationName(stats.modulation));
+        ImGui::TextColored(modColor, "Type: %s", PRIAnalyzer::getModulationName(stats.modulation));
 
         if (stats.pulseCount >= 6) {
-            ImGui::Text("Ort. PRI: %.2f us | StdDev: %.2f us | PRF: %.1f Hz",
+            ImGui::Text("Mean PRI: %.2f us | StdDev: %.2f us | PRF: %.1f Hz",
                 stats.meanPri * 1.0e6, stats.stdDevPri * 1.0e6, stats.estimatedPrf);
 
             if (stats.modulation == PRIModulation::STAGGERED && !stats.staggerLevels.empty()) {
-                std::string staggerStr = "Kademeler: ";
+                std::string staggerStr = "Stagger levels: ";
                 for (size_t i = 0; i < stats.staggerLevels.size(); ++i) {
                     char buf[32];
                     snprintf(buf, sizeof(buf), "[%zu] %.1fus  ", i + 1, stats.staggerLevels[i] * 1.0e6);
@@ -140,31 +140,31 @@ namespace rf_tools {
                 ImGui::TextColored(ImVec4(0.3f, 0.9f, 1.0f, 1.0f), "%s", staggerStr.c_str());
             }
         } else {
-            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Yeterli darbe toplanıyor (%zu/6)...", stats.pulseCount);
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Collecting pulses (%zu/6)...", stats.pulseCount);
         }
 
         ImGui::Separator();
 
         // Controls
-        ImGui::LeftLabel("Bin Sayısı");
+        ImGui::LeftLabel("Bin count");
         ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
         if (ImGui::SliderInt("##hist_bins", &_binCount, 16, 64)) {
             std::lock_guard<std::mutex> lock(_mutex);
             updateBinsLocked();
         }
 
-        if (ImGui::Button("Sıfırla##hist_clear")) {
+        if (ImGui::Button("Reset##hist_clear")) {
             clear();
         }
         ImGui::SameLine();
-        ImGui::Text("Örnek Sayısı: %zu", _pdwHistory.size());
+        ImGui::Text("Samples: %zu", _pdwHistory.size());
 
         ImGui::Spacing();
 
         // 2. PRI Histogram Plot
         char priOverlay[64];
         snprintf(priOverlay, sizeof(priOverlay), "PRI: [%.1f - %.1f us]", _priMinUs, _priMaxUs);
-        ImGui::TextUnformatted("PRI Dağılımı:");
+        ImGui::TextUnformatted("PRI distribution:");
         {
             std::lock_guard<std::mutex> lock(_mutex);
             ImGui::PlotHistogram("##pri_hist", _priBins.data(), (int)_priBins.size(), 0, priOverlay, 0.0f, FLT_MAX, ImVec2(menuWidth, 80));
@@ -173,7 +173,7 @@ namespace rf_tools {
         // 3. Pulse Width (PW) Histogram Plot
         char pwOverlay[64];
         snprintf(pwOverlay, sizeof(pwOverlay), "PW: [%.2f - %.2f us]", _pwMinUs, _pwMaxUs);
-        ImGui::TextUnformatted("Darbe Genişliği (PW) Dağılımı:");
+        ImGui::TextUnformatted("Pulse width (PW) distribution:");
         {
             std::lock_guard<std::mutex> lock(_mutex);
             ImGui::PlotHistogram("##pw_hist", _pwBins.data(), (int)_pwBins.size(), 0, pwOverlay, 0.0f, FLT_MAX, ImVec2(menuWidth, 80));
@@ -182,7 +182,7 @@ namespace rf_tools {
         // 4. Frequency Offset Distribution Plot
         char freqOverlay[64];
         snprintf(freqOverlay, sizeof(freqOverlay), "dF: [%.1f - %.1f kHz]", _freqMinKhz, _freqMaxKhz);
-        ImGui::TextUnformatted("Frekans Sapması (dF) Dağılımı:");
+        ImGui::TextUnformatted("Frequency offset (dF) distribution:");
         {
             std::lock_guard<std::mutex> lock(_mutex);
             ImGui::PlotHistogram("##freq_hist", _freqBins.data(), (int)_freqBins.size(), 0, freqOverlay, 0.0f, FLT_MAX, ImVec2(menuWidth, 80));
