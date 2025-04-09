@@ -190,6 +190,13 @@ public:
         config.acquire();
         if (!config.conf["devices"].contains(selectedDevName)) {
             created = true;
+
+            // New device, start at ~30 dB
+            for (int i = 0; i < gainList.size(); i++) {
+                gainId = i;
+                if (gainList[i] >= 300) { break; }
+            }
+
             config.conf["devices"][selectedDevName]["sampleRate"] = 2400000.0;
             config.conf["devices"][selectedDevName]["directSampling"] = directSamplingMode;
             config.conf["devices"][selectedDevName]["ppm"] = 0;
