@@ -609,10 +609,12 @@ void MainWindow::draw() {
 
     ImGui::Begin("Waterfall", NULL);
     ImVec2 availableSpaceInWaterfall = ImGui::GetContentRegionAvail();
+    // Fit the widest label
+    float wfControlsWidth = std::max<float>(40.0f * style::uiScale, ImGui::CalcTextSize("Contrast").x + (28.0f * style::uiScale));
     ImGui::Columns(2, "WaterfallColumns", false);
-    ImGui::SetColumnWidth(0, std::max<int>(availableSpaceInWaterfall.x - (40.0f * style::uiScale),
+    ImGui::SetColumnWidth(0, std::max<int>(availableSpaceInWaterfall.x - wfControlsWidth,
                                            100.0f * style::uiScale));
-    ImGui::SetColumnWidth(1, 40.0f * style::uiScale);
+    ImGui::SetColumnWidth(1, wfControlsWidth);
 
     ImGui::BeginChild("FFT Child");
 
@@ -687,7 +689,7 @@ void MainWindow::draw() {
     ImVec2 wfSliderSize(wfSliderHor, wfSliderVert);
 
     // Zoom slider
-    ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Zoom").x / 2.0));
+    ImGui::SetCursorPosX(std::max<float>(0.0f, (ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Zoom").x / 2.0)));
     ImGui::TextUnformatted("Zoom");
     ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - 10 * style::uiScale);
 
@@ -708,7 +710,7 @@ void MainWindow::draw() {
     ImGui::NewLine();
 
     // Contrast slider
-    ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Contrast").x / 2.0));
+    ImGui::SetCursorPosX(std::max<float>(0.0f, (ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Contrast").x / 2.0)));
     ImGui::TextUnformatted("Contrast");
     ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - 10 * style::uiScale);
     if (ImGui::VSliderFloat("##_8_", wfSliderSize, &fftContrast, 0.0, 160.0, "")) {
@@ -721,7 +723,7 @@ void MainWindow::draw() {
     float range = fftMax - fftMin;
 
     // Offset slider
-    ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Offset").x / 2.0));
+    ImGui::SetCursorPosX(std::max<float>(0.0f, (ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Offset").x / 2.0)));
     ImGui::TextUnformatted("Offset");
     ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - 10 * style::uiScale);
     if (ImGui::VSliderFloat("##_9_", wfSliderSize, &offset, -160.0f, 0.0f, "")) {
@@ -753,7 +755,7 @@ void MainWindow::draw() {
     ImGui::NewLine();
 
     // Range slider
-    ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Range").x / 2.0));
+    ImGui::SetCursorPosX(std::max<float>(0.0f, (ImGui::GetWindowSize().x / 2.0) - (ImGui::CalcTextSize("Range").x / 2.0)));
     ImGui::TextUnformatted("Range");
     ImGui::SetCursorPosX((ImGui::GetWindowSize().x / 2.0) - 10 * style::uiScale);
     ImGui::SetItemUsingMouseWheel();
