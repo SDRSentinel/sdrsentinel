@@ -93,8 +93,13 @@ namespace rf_tools {
 
         ImGui::Separator();
 
+        if (_totalPulses == 0) {
+            ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "No pulses yet. Press play, tune to a pulsed signal and set the threshold just above the noise floor.");
+            ImGui::Spacing();
+        }
+
         // PDW table
-        int tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
+        int tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
         if (ImGui::BeginTable("##pdw_table", 8, tableFlags, ImVec2(0, 240))) {
             ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
             ImGui::TableSetupColumn("TOA (s)", ImGuiTableColumnFlags_WidthFixed, 75.0f);

@@ -143,14 +143,6 @@ private:
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Direction Finding")) {
-                ImGui::Spacing();
-                ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "Direction of Arrival (DOA) / MUSIC Engine");
-                ImGui::Separator();
-                ImGui::TextUnformatted("(Upcoming Milestone 4 & 5: Multi-channel MUSIC & Root-MUSIC)");
-                ImGui::EndTabItem();
-            }
-
             ImGui::EndTabBar();
         }
     }
