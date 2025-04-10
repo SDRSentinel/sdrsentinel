@@ -37,7 +37,7 @@ bool Menu::draw(bool updateStates) {
 
     for (MenuOption_t& opt : order) {
         rawId++;
-        if (items.find(opt.name) == items.end()) {
+        if (items.find(opt.name) == items.end() || opt.detached) {
             continue;
         }
         if (opt.name == draggedMenuName) {
@@ -73,9 +73,8 @@ bool Menu::draw(bool updateStates) {
 
 
         ImRect orginalRect = window->WorkRect;
-        if (item.inst != NULL) {
-            window->WorkRect = ImRect(orginalRect.Min, ImVec2(orginalRect.Max.x - ImGui::GetTextLineHeight() - (6.0f * style::uiScale), orginalRect.Max.y));
-        }
+        float buttonSize = ImGui::GetTextLineHeight() + (6.0f * style::uiScale);
+        window->WorkRect = ImRect(orginalRect.Min, ImVec2(orginalRect.Max.x - buttonSize - (item.inst != NULL ? buttonSize : 0.0f), orginalRect.Max.y));
 
         ImVec2 posMin = ImGui::GetCursorScreenPos();
         ImVec2 posMax = ImVec2(posMin.x + menuWidth, posMin.y + ImGui::GetFrameHeight());
@@ -99,12 +98,19 @@ bool Menu::draw(bool updateStates) {
             ImGui::SetTooltip("Menu Order Locked!");
         }
 
-        // Draw menu header and menu content. There is a lot of boilerplate because the checkbox has to be drawn before the menu, TODO: fix
-        if (updateStates) { ImGui::SetNextItemOpen(opt.open); }
-        if (ImGui::CollapsingHeader((opt.name + "##sdrpp_main_menu").c_str())) {
+        // Draw menu header and menu content
+        if (updateStates || opt.applyOpen) {
+            ImGui::SetNextItemOpen(opt.open);
+            opt.applyOpen = false;
+        }
+        bool headerOpen = ImGui::CollapsingHeader((opt.name + "##sdrpp_main_menu").c_str());
+        window->WorkRect = orginalRect;
+
+        {
+            ImVec2 pos = ImGui::GetCursorPos();
+            float lineHeight = ImGui::GetTextLineHeight();
+
             if (item.inst != NULL) {
-                window->WorkRect = orginalRect;
-                ImVec2 pos = ImGui::GetCursorPos();
                 ImGui::SetCursorPosX(pos.x + checkboxOffset.x);
                 ImGui::SetCursorPosY(pos.y + checkboxOffset.y);
                 bool enabled = item.inst->isEnabled();
@@ -112,9 +118,33 @@ bool Menu::draw(bool updateStates) {
                     enabled ? item.inst->enable() : item.inst->disable();
                     changed = true;
                 }
-                ImGui::SetCursorPos(pos);
             }
 
+            // Detach button
+            float buttonX = pos.x + checkboxOffset.x - (item.inst != NULL ? lineHeight + (6.0f * style::uiScale) : 0.0f);
+            ImGui::SetCursorPos(ImVec2(buttonX, pos.y + checkboxOffset.y + ImGui::GetStyle().FramePadding.y));
+            if (ImGui::InvisibleButton(("##_menu_detach_" + opt.name).c_str(), ImVec2(lineHeight, lineHeight))) {
+                opt.detached = true;
+                spawnName = opt.name;
+                spawnPos = ImGui::GetMousePos();
+                changed = true;
+            }
+            bool hovered = ImGui::IsItemHovered();
+            ImVec2 a = ImGui::GetItemRectMin();
+            float sz = lineHeight;
+            ImDrawList* dl = window->DrawList;
+            ImU32 col = ImGui::GetColorU32(hovered ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+            float th = std::max(1.0f, style::uiScale);
+            dl->AddRect(ImVec2(a.x + 0.10f * sz, a.y + 0.35f * sz), ImVec2(a.x + 0.65f * sz, a.y + 0.90f * sz), col, 0.0f, 0, th);
+            dl->AddLine(ImVec2(a.x + 0.40f * sz, a.y + 0.60f * sz), ImVec2(a.x + 0.90f * sz, a.y + 0.10f * sz), col, th);
+            dl->AddLine(ImVec2(a.x + 0.90f * sz, a.y + 0.10f * sz), ImVec2(a.x + 0.60f * sz, a.y + 0.10f * sz), col, th);
+            dl->AddLine(ImVec2(a.x + 0.90f * sz, a.y + 0.10f * sz), ImVec2(a.x + 0.90f * sz, a.y + 0.40f * sz), col, th);
+            if (hovered) { ImGui::SetTooltip("Detach into a dock panel"); }
+
+            ImGui::SetCursorPos(pos);
+        }
+
+        if (headerOpen) {
             // Check if the state changed
             if (!opt.open && !updateStates) {
                 opt.open = true;
@@ -123,23 +153,6 @@ bool Menu::draw(bool updateStates) {
 
             item.drawHandler(item.ctx);
             ImGui::Spacing();
-        }
-        else if (item.inst != NULL) {
-            window->WorkRect = orginalRect;
-            ImVec2 pos = ImGui::GetCursorPos();
-            ImGui::SetCursorPosX(pos.x + checkboxOffset.x);
-            ImGui::SetCursorPosY(pos.y + checkboxOffset.y);
-            bool enabled = item.inst->isEnabled();
-            if (ImGui::Checkbox(("##_menu_checkbox_" + opt.name).c_str(), &enabled)) {
-                enabled ? item.inst->enable() : item.inst->disable();
-                changed = true;
-            }
-            ImGui::SetCursorPos(pos);
-
-            if (opt.open && !updateStates) {
-                opt.open = false;
-                changed = true;
-            }
         }
         else if (opt.open && !updateStates) {
             opt.open = false;
@@ -205,6 +218,47 @@ bool Menu::draw(bool updateStates) {
                 insertBeforeName = order[optionIDs[i]].name;
                 break;
             }
+        }
+    }
+
+    return changed;
+}
+
+bool Menu::drawDetached() {
+    bool changed = false;
+
+    for (MenuOption_t& opt : order) {
+        auto it = items.find(opt.name);
+        if (!opt.detached || it == items.end()) {
+            continue;
+        }
+        MenuItem_t& item = it->second;
+
+        // Only position it when just detached
+        if (spawnName == opt.name) {
+            ImGui::SetNextWindowPos(spawnPos, ImGuiCond_Always);
+            spawnName = "";
+        }
+        ImGui::SetNextWindowSize(ImVec2(320.0f * style::uiScale, 380.0f * style::uiScale), ImGuiCond_FirstUseEver);
+
+        bool open = true;
+        if (ImGui::Begin(opt.name.c_str(), &open)) {
+            if (item.inst != NULL) {
+                bool enabled = item.inst->isEnabled();
+                if (ImGui::Checkbox(("Enabled##_menu_checkbox_" + opt.name).c_str(), &enabled)) {
+                    enabled ? item.inst->enable() : item.inst->disable();
+                    changed = true;
+                }
+            }
+            item.drawHandler(item.ctx);
+        }
+        ImGui::End();
+
+        // Closing the window puts the section back
+        if (!open) {
+            opt.detached = false;
+            opt.applyOpen = true;
+            changed = true;
         }
     }
 

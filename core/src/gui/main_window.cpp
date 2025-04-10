@@ -68,6 +68,7 @@ void MainWindow::init() {
         Menu::MenuOption_t opt;
         opt.name = elem["name"];
         opt.open = elem["open"];
+        opt.detached = elem.contains("detached") && elem["detached"].is_boolean() && elem["detached"].get<bool>();
         gui::menu.order.push_back(opt);
     }
 
@@ -540,12 +541,14 @@ void MainWindow::draw() {
     ImGui::SetNextWindowSizeConstraints(ImVec2(300 * style::uiScale, 300 * style::uiScale), ImVec2(INFINITY, INFINITY));
     ImGui::Begin("Menu", NULL);
     ImGui::BeginChild("Menu Child");
-    if (gui::menu.draw(firstMenuRender)) {
+    // Save menu state and enabled modules
+    auto saveMenuConfig = []() {
         core::configManager.acquire();
         json arr = json::array();
         for (int i = 0; i < gui::menu.order.size(); i++) {
             arr[i]["name"] = gui::menu.order[i].name;
             arr[i]["open"] = gui::menu.order[i].open;
+            arr[i]["detached"] = gui::menu.order[i].detached;
         }
         core::configManager.conf["menuElements"] = arr;
 
@@ -556,6 +559,10 @@ void MainWindow::draw() {
         }
 
         core::configManager.release(true);
+    };
+
+    if (gui::menu.draw(firstMenuRender)) {
+        saveMenuConfig();
     }
     if (startedWithMenuClosed) {
         startedWithMenuClosed = false;
@@ -564,6 +571,10 @@ void MainWindow::draw() {
     }
 
     ImGui::EndChild();
+
+    if (gui::menu.drawDetached()) {
+        saveMenuConfig();
+    }
 
     if (gui::dock.draw()) {
         core::configManager.acquire();
