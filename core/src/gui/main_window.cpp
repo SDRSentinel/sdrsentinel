@@ -515,7 +515,11 @@ void MainWindow::draw() {
     } else {
         ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), DOCKSPACE_FLAGS);
 
-        if (ImGui::IsKeyPressed(ImGuiKey_F12)) {
+        // Save layout on F12 or when the dock settings change
+        ImGuiIO& dockIo = ImGui::GetIO();
+        bool autoSaveLayout = dockIo.WantSaveIniSettings;
+        dockIo.WantSaveIniSettings = false;
+        if (ImGui::IsKeyPressed(ImGuiKey_F12) || autoSaveLayout) {
             saveDockLayout = false;
             ImGuiContext& g = *GImGui;
             ImGuiID id = ImGui::GetID("DockSpace");

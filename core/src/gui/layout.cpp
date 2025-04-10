@@ -8,10 +8,19 @@
 #include <utils/flog.h>
 #include <core.h>
 #include <map>
+#include <filesystem>
 
 using json = nlohmann::json;
 
 std::map<ImGuiID, ImGuiID> dictionary;
+
+// Layouts are kept in the root dir, not in the app bundle
+static std::string getLayoutPath(const std::string& name) {
+    std::string dir = (std::string)core::args["root"] + "/layouts";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    return dir + "/" + name + ".json";
+}
 
 json serializeDockNode(ImGuiDockNode* node)
 {
@@ -202,10 +211,7 @@ void layout::createDockLayoutFromJson(ImGuiID& dockspaceID, ImVec2 availableSpac
 
     flog::info("Loading config");
 
-    core::configManager.acquire();
-    std::string filepath = core::configManager.conf["resourcesDirectory"];
-    filepath += "/layouts/" + filename + ".json";
-    core::configManager.release();
+    std::string filepath = getLayoutPath(filename);
 
     layoutConfig.setPath(filepath);
     layoutConfig.load(dockWidgetConfig);
@@ -242,10 +248,7 @@ void layout::createDockLayoutFromJson(ImGuiID& dockspaceID, ImVec2 availableSpac
 void layout::printAllDockNodesAsJson(ImGuiDockNode* node, std::string filename) {
     if (node) {
         // Serialize the dock node tree into JSON
-        core::configManager.acquire();
-        std::string filepath = core::configManager.conf["resourcesDirectory"];
-        filepath += "/layouts/" + filename + ".json";
-        core::configManager.release();
+        std::string filepath = getLayoutPath(filename);
 
         layoutConfig.acquire();
         layoutConfig.setPath(filepath);
