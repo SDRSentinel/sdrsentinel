@@ -6,6 +6,7 @@
 #include <core.h>
 #include <utils/flog.h>
 #include <thread>
+#include <algorithm>
 #include <atomic>
 #include "pdw/pulse_detector.h"
 #include "pdw/pulse_extractor.h"
@@ -26,13 +27,10 @@ public:
     RFAnalysisModule(std::string name) {
         this->name = name;
 
-        // Default VFO parameters: 2 MHz bandwidth, centered
-        double defaultBw = 2000000.0;
-        double defaultSr = 2000000.0;
-        vfo = sigpath::vfoManager.createVFO(name, ImGui::WaterfallVFO::REF_CENTER, 0.0, defaultBw, defaultSr, 50000.0, 10000000.0, false);
+        createVFO();
 
-        detector.init(defaultSr, -40.0f, 0.5e-6, 1000.0e-6);
-        extractor.init(defaultSr, 0.0);
+        detector.init(sampleRate, -40.0f, 0.5e-6, 1000.0e-6);
+        extractor.init(sampleRate, 0.0);
         priAnalyzer.init(256);
 
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
@@ -64,7 +62,7 @@ public:
     void enable() override {
         if (!enabled) {
             if (!vfo) {
-                vfo = sigpath::vfoManager.createVFO(name, ImGui::WaterfallVFO::REF_CENTER, 0.0, 2000000.0, 2000000.0, 50000.0, 10000000.0, false);
+                createVFO();
             }
             startWorker();
             enabled = true;
@@ -87,6 +85,44 @@ public:
     }
 
 private:
+    // Up to 2 MHz, limited by the spectrum
+    void createVFO() {
+        double span = gui::waterfall.getBandwidth();
+        double bw = (span > 0.0) ? std::min(2000000.0, span) : 2000000.0;
+        vfo = sigpath::vfoManager.createVFO(name, ImGui::WaterfallVFO::REF_CENTER, 0.0, bw, bw, 50000.0, (span > 0.0) ? span : 10000000.0, false);
+        if (!vfo) { return; }
+
+        // Doesn't take clicks, select it from the menu
+        vfo->wtfVFO->selectable = false;
+        sampleRate = bw;
+    }
+
+    // Keep VFO, output rate and detector in sync
+    void syncVFO() {
+        double span = gui::waterfall.getBandwidth();
+        double bw = vfo->getBandwidth();
+        bool changed = vfo->getBandwidthChanged(true);
+
+        if (span > 0.0) {
+            vfo->setBandwidthLimits(50000.0, std::max(span, 50000.0), false);
+            if (bw > span) {
+                bw = span;
+                changed = true;
+            }
+        }
+
+        // Output rate follows the bandwidth
+        if (changed) {
+            vfo->setSampleRate(bw, bw);
+        }
+
+        if (bw != sampleRate) {
+            sampleRate = bw;
+            detector.setSampleRate(bw);
+            extractor.setSampleRate(bw);
+        }
+    }
+
     void startWorker() {
         if (running.load() || !vfo || !vfo->output) return;
         running.store(true);
@@ -110,15 +146,13 @@ private:
     void workerLoop() {
         while (running.load()) {
             if (!vfo || !vfo->output) break;
+
+            syncVFO();
+
             int count = vfo->output->read();
             if (count < 0) {
                 break;
             }
-
-            // Check if VFO sample rate or bandwidth changed
-            double currentBw = vfo->getBandwidth();
-            detector.setSampleRate(currentBw);
-            extractor.setSampleRate(currentBw);
 
             detector.process(vfo->output->readBuf, count);
             vfo->output->flush();
@@ -131,6 +165,22 @@ private:
 
         double centerFreq = gui::waterfall.getCenterFrequency() + (mod->vfo ? mod->vfo->getOffset() : 0.0);
         double vfoBw = mod->vfo ? mod->vfo->getBandwidth() : 0.0;
+
+        if (mod->vfo) {
+            if (gui::waterfall.selectedVFO == mod->name) {
+                ImGui::TextDisabled("VFO selected: click the spectrum to move it");
+            }
+            else {
+                if (ImGui::Button("Select VFO##rf_tools_select_vfo")) {
+                    gui::waterfall.selectedVFO = mod->name;
+                    gui::waterfall.selectedVFOChanged = true;
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("This VFO ignores clicks on the spectrum so it doesn't take over tuning.\nSelect it to move it or to see its frequency.");
+                }
+            }
+            ImGui::Spacing();
+        }
 
         if (ImGui::BeginTabBar("##rf_tools_tabs")) {
             if (ImGui::BeginTabItem("Pulse / PDW")) {
@@ -150,6 +200,7 @@ private:
     std::string name;
     bool enabled = true;
     VFOManager::VFO* vfo = nullptr;
+    double sampleRate = 2000000.0;
 
     rf_tools::PulseDetector detector;
     rf_tools::PulseExtractor extractor;
