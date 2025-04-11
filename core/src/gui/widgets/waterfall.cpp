@@ -233,17 +233,20 @@ namespace ImGui {
     }
 
     void WaterFall::selectFirstVFO() {
-        bool available = false;
+        // Prefer a selectable VFO
         for (auto const& [name, vfo] : vfos) {
-            available = true;
+            if (!vfo->selectable) { continue; }
             selectedVFO = name;
             selectedVFOChanged = true;
             return;
         }
-        if (!available) {
-            selectedVFO = "";
+        for (auto const& [name, vfo] : vfos) {
+            selectedVFO = name;
             selectedVFOChanged = true;
+            return;
         }
+        selectedVFO = "";
+        selectedVFOChanged = true;
     }
 
     void WaterFall::processInputs() {
@@ -273,13 +276,21 @@ namespace ImGui {
         if (mousePos.x != lastMousePos.x || mousePos.y != lastMousePos.y) { mouseMoved = true; }
         lastMousePos = mousePos;
 
-        std::string hoveredVFOName = "";
-        for (auto const& [name, _vfo] : vfos) {
-            if (ImGui::IsMouseHoveringRect(_vfo->rectMin, _vfo->rectMax) || ImGui::IsMouseHoveringRect(_vfo->wfRectMin, _vfo->wfRectMax)) {
-                hoveredVFOName = name;
-                break;
+        // Narrowest VFO under the cursor wins
+        auto findHoveredVFO = [&](bool selectableOnly) {
+            std::string best = "";
+            double bestBw = INFINITY;
+            for (auto const& [name, _vfo] : vfos) {
+                if (selectableOnly && !_vfo->selectable) { continue; }
+                if (!ImGui::IsMouseHoveringRect(_vfo->rectMin, _vfo->rectMax) && !ImGui::IsMouseHoveringRect(_vfo->wfRectMin, _vfo->wfRectMax)) { continue; }
+                if (_vfo->bandwidth < bestBw || (_vfo->bandwidth == bestBw && name == selectedVFO)) {
+                    best = name;
+                    bestBw = _vfo->bandwidth;
+                }
             }
-        }
+            return best;
+        };
+        std::string hoveredVFOName = findHoveredVFO(true);
 
         // Deselect everything if the mouse is released
         if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
@@ -492,8 +503,10 @@ namespace ImGui {
         }
         else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             // Check if a VFO is hovered. If yes, show tooltip
-            for (auto const& [name, _vfo] : vfos) {
-                if (ImGui::IsMouseHoveringRect(_vfo->rectMin, _vfo->rectMax) || ImGui::IsMouseHoveringRect(_vfo->wfRectMin, _vfo->wfRectMax)) {
+            {
+                std::string name = findHoveredVFO(false);
+                if (name != "") {
+                    WaterfallVFO* _vfo = vfos[name];
                     char buf[128];
                     ImGui::BeginTooltip();
 
@@ -519,7 +532,6 @@ namespace ImGui {
                     }
 
                     ImGui::EndTooltip();
-                    break;
                 }
             }
         }
