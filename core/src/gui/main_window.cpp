@@ -409,6 +409,24 @@ void MainWindow::draw() {
 
     ImGui::SameLine();
 
+    // Selected VFO
+    ImGui::SetCursorPosY(origY + (3.0f * style::uiScale));
+    ImGui::SetNextItemWidth(150.0f * style::uiScale);
+    if (ImGui::BeginCombo("##sdrpp_selected_vfo", gui::waterfall.selectedVFO.empty() ? "No VFO" : gui::waterfall.selectedVFO.c_str())) {
+        for (auto const& [vfoName, vfoItem] : gui::waterfall.vfos) {
+            bool isSelected = (vfoName == gui::waterfall.selectedVFO);
+            if (ImGui::Selectable(vfoName.c_str(), isSelected)) {
+                gui::waterfall.selectedVFO = vfoName;
+                gui::waterfall.selectedVFOChanged = true;
+            }
+            if (isSelected) { ImGui::SetItemDefaultFocus(); }
+        }
+        ImGui::EndCombo();
+    }
+    if (ImGui::IsItemHovered()) { ImGui::SetTooltip("Selected VFO\nPage Up / Page Down cycles through the VFOs"); }
+
+    ImGui::SameLine();
+
     int snrOffset = 87.0f * style::uiScale;
     int snrWidth = std::clamp<int>(ImGui::GetWindowSize().x - ImGui::GetCursorPosX() - snrOffset,
                                    100.0f * style::uiScale, 300.0f * style::uiScale);
