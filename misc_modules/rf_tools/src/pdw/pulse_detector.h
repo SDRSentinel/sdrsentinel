@@ -23,6 +23,8 @@ namespace rf_tools {
         void init(double sampleRate, float thresholdDb = -40.0f, double minPw = 0.5e-6, double maxPw = 1000.0e-6);
         void setSampleRate(double sampleRate);
         void setThreshold(float thresholdDb);
+        void setAutoThreshold(bool enable);
+        void setNoiseMargin(float marginDb);
         void setPulseWidthLimits(double minPw, double maxPw);
         void setPulseCallback(PulseCallback callback);
 
@@ -30,6 +32,10 @@ namespace rf_tools {
         void process(const dsp::complex_t* data, int count);
 
         float getThreshold() const { return _thresholdDb; }
+        bool getAutoThreshold() const { return _auto; }
+        float getNoiseMargin() const { return _marginDb; }
+        float getNoiseFloorDb() const;
+        float getEffectiveThresholdDb() const;
         double getMinPulseWidth() const { return _minPw; }
         double getMaxPulseWidth() const { return _maxPw; }
         uint64_t getTotalPulses() const { return _totalPulses; }
@@ -41,11 +47,18 @@ namespace rf_tools {
         };
 
         void updateLinearThreshold();
+        void updateAutoThreshold();
         void updateSampleLimits();
 
         double _sampleRate = 1.0e6;
         float _thresholdDb = -40.0f;
         float _linearThreshold = 0.01f;
+        float _endThreshold = 0.0071f;
+        bool _auto = true;
+        float _marginDb = 12.0f;
+        double _noisePower = 0.0;
+        bool _noiseInit = false;
+        static constexpr uint64_t WARMUP_SAMPLES = 4096;
         double _minPw = 0.5e-6;
         double _maxPw = 1000.0e-6;
 

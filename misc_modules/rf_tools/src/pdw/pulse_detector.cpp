@@ -31,6 +31,23 @@ namespace rf_tools {
         updateLinearThreshold();
     }
 
+    void PulseDetector::setAutoThreshold(bool enable) {
+        _auto = enable;
+        updateLinearThreshold();
+    }
+
+    void PulseDetector::setNoiseMargin(float marginDb) {
+        _marginDb = marginDb;
+    }
+
+    float PulseDetector::getNoiseFloorDb() const {
+        return 10.0f * std::log10(static_cast<float>(_noisePower) + 1.0e-20f);
+    }
+
+    float PulseDetector::getEffectiveThresholdDb() const {
+        return 20.0f * std::log10(_linearThreshold + 1.0e-10f);
+    }
+
     void PulseDetector::setPulseWidthLimits(double minPw, double maxPw) {
         _minPw = minPw;
         _maxPw = maxPw;
@@ -43,7 +60,16 @@ namespace rf_tools {
 
     void PulseDetector::updateLinearThreshold() {
         // thresholdDb is in dBFS (where 1.0 peak amplitude is 0 dBFS)
-        _linearThreshold = std::pow(10.0f, _thresholdDb / 20.0f);
+        if (!_auto) {
+            _linearThreshold = std::pow(10.0f, _thresholdDb / 20.0f);
+            _endThreshold = _linearThreshold * 0.708f; // 3 dB hysteresis
+        }
+    }
+
+    void PulseDetector::updateAutoThreshold() {
+        if (!_auto || !_noiseInit) return;
+        _linearThreshold = std::max(1.0e-6f, std::sqrt(static_cast<float>(_noisePower)) * std::pow(10.0f, _marginDb / 20.0f));
+        _endThreshold = _linearThreshold * 0.708f;
     }
 
     void PulseDetector::updateSampleLimits() {
@@ -60,6 +86,8 @@ namespace rf_tools {
         _pulseBuffer.clear();
         _noiseBuffer.clear();
         _noiseIdx = 0;
+        _noiseInit = false;
+        _noisePower = 0.0;
         for (size_t i = 0; i < PRE_NOISE_WINDOW; ++i) {
             _recentNoise[i] = { 0.0f, 0.0f };
         }
@@ -68,14 +96,29 @@ namespace rf_tools {
     void PulseDetector::process(const dsp::complex_t* data, int count) {
         if (!data || count <= 0) return;
 
+        updateAutoThreshold();
+
         for (int i = 0; i < count; ++i) {
             dsp::complex_t s = data[i];
-            float mag = std::sqrt(s.re * s.re + s.im * s.im);
+            float power = s.re * s.re + s.im * s.im;
+            float mag = std::sqrt(power);
 
             if (_state == SEARCHING) {
                 // Keep pre-pulse ring buffer for noise floor estimation
                 _recentNoise[_noiseIdx] = s;
                 _noiseIdx = (_noiseIdx + 1) % PRE_NOISE_WINDOW;
+
+                // Slow running average of the power outside pulses
+                if (!_noiseInit) {
+                    _noisePower = power;
+                    _noiseInit = true;
+                }
+                else {
+                    _noisePower += 1.0e-3 * (power - _noisePower);
+                }
+
+                // Let the noise floor settle before detecting
+                if (_auto && _totalSamples + i < WARMUP_SAMPLES) continue;
 
                 if (mag >= _linearThreshold) {
                     _state = IN_PULSE;
@@ -94,7 +137,7 @@ namespace rf_tools {
             else { // IN_PULSE
                 _pulseBuffer.push_back(s);
 
-                bool pulseEnded = (mag < _linearThreshold);
+                bool pulseEnded = (mag < _endThreshold);
                 bool pulseOverflow = (_pulseBuffer.size() > _maxSamples);
 
                 if (pulseEnded || pulseOverflow) {

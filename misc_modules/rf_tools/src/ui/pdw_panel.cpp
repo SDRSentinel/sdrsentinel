@@ -57,11 +57,27 @@ namespace rf_tools {
         ImGui::Separator();
 
         // Detection parameters
-        _guiThreshold = detector.getThreshold();
-        ImGui::LeftLabel("Threshold (dBFS)");
-        ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
-        if (ImGui::SliderFloat("##pdw_thresh", &_guiThreshold, -100.0f, -5.0f, "%.1f dBFS")) {
-            detector.setThreshold(_guiThreshold);
+        bool autoThreshold = detector.getAutoThreshold();
+        if (ImGui::Checkbox("Auto threshold##pdw_auto_thresh", &autoThreshold)) {
+            detector.setAutoThreshold(autoThreshold);
+        }
+
+        if (autoThreshold) {
+            _guiMargin = detector.getNoiseMargin();
+            ImGui::LeftLabel("Above noise (dB)");
+            ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
+            if (ImGui::SliderFloat("##pdw_margin", &_guiMargin, 3.0f, 30.0f, "%.1f dB")) {
+                detector.setNoiseMargin(_guiMargin);
+            }
+            ImGui::Text("Noise: %.1f dBFS | Threshold: %.1f dBFS", detector.getNoiseFloorDb(), detector.getEffectiveThresholdDb());
+        }
+        else {
+            _guiThreshold = detector.getThreshold();
+            ImGui::LeftLabel("Threshold (dBFS)");
+            ImGui::SetNextItemWidth(menuWidth - ImGui::GetCursorPosX());
+            if (ImGui::SliderFloat("##pdw_thresh", &_guiThreshold, -100.0f, -5.0f, "%.1f dBFS")) {
+                detector.setThreshold(_guiThreshold);
+            }
         }
 
         _guiMinPwUs = static_cast<float>(detector.getMinPulseWidth() * 1.0e6);
