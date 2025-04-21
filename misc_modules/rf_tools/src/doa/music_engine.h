@@ -1,0 +1,47 @@
+#pragma once
+#include "types.h"
+#include <vector>
+#include <complex>
+
+namespace rf_tools {
+namespace doa {
+
+class MUSICEngine {
+public:
+    MUSICEngine();
+    ~MUSICEngine() = default;
+
+    void setConfig(const DOAConfig& config);
+    const DOAConfig& getConfig() const { return config_; }
+
+    // Estimate model order (number of active sources) using Minimum Description Length (MDL)
+    size_t estimateModelOrderMDL(const Eigen::VectorXf& eigenvalues_desc, size_t num_snapshots) const;
+
+    // Estimate model order using Akaike Information Criterion (AIC)
+    size_t estimateModelOrderAIC(const Eigen::VectorXf& eigenvalues_desc, size_t num_snapshots) const;
+
+    // Compute Spectral MUSIC pseudo-spectrum and extract peaks
+    DOAResult computeSpectralMUSIC(const Eigen::MatrixXcf& Rxx, size_t num_snapshots);
+
+    // Compute Root-MUSIC polynomial roots directly for ULA (Uniform Linear Array)
+    DOAResult computeRootMUSIC(const Eigen::MatrixXcf& Rxx, size_t num_snapshots);
+
+    // Combined DOA estimation: performs Root-MUSIC for ULA, falls back to Spectral MUSIC for UCA or grid plotting
+    DOAResult computeDOA(const Eigen::MatrixXcf& Rxx, size_t num_snapshots);
+
+    // Calibrate array phase/gain using Soon et al. (1994) subspace pilot method
+    std::vector<std::complex<float>> calibrateFromPilot(const Eigen::MatrixXcf& Rxx, float pilot_angle_deg) const;
+
+private:
+    Eigen::VectorXcf getSteeringVectorULA(float theta_rad) const;
+    Eigen::VectorXcf getSteeringVectorUCA(float theta_rad) const;
+    Eigen::VectorXcf getSteeringVector(float theta_rad) const;
+
+    void getRootsPolynomial(const Eigen::MatrixXcf& Pi_N, Eigen::VectorXcf& out_roots) const;
+    std::vector<float> findSpectralPeaks(const std::vector<float>& angles, const std::vector<float>& spectrum, size_t max_peaks) const;
+
+    DOAConfig config_;
+};
+
+} // namespace doa
+} // namespace rf_tools
