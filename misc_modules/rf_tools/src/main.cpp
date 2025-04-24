@@ -13,6 +13,11 @@
 #include "pri/pri_analyzer.h"
 #include "ui/pdw_panel.h"
 #include "ui/histogram_panel.h"
+#include "doa/types.h"
+#include "doa/covariance_accumulator.h"
+#include "doa/music_engine.h"
+#include "doa/array_synthesizer.h"
+#include "ui/doa_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -32,6 +37,9 @@ public:
         detector.init(sampleRate, -40.0f, 0.5e-6, 1000.0e-6);
         extractor.init(sampleRate, 0.0);
         priAnalyzer.init(256);
+
+        // Initialize DOA components with 4-element ULA and 256 snapshots
+        covAccumulator.init(4, 256, 0.0f, false);
 
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
             double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
@@ -155,6 +163,28 @@ private:
             }
 
             detector.process(vfo->output->readBuf, count);
+
+            // Direction Finding (DOA) Processing
+            if (doaEnabled.load()) {
+                if (doaSimulationMode.load()) {
+                    auto synth_snapshots = arraySynthesizer.generateSnapshots(256, static_cast<float>(sampleRate));
+                    covAccumulator.feedSnapshotsInterleaved(synth_snapshots.data(), musicEngine.getConfig().num_elements, 256);
+                } else {
+                    // Feed single-channel stream to array channel 0
+                    std::vector<std::complex<float>> ch_snap(musicEngine.getConfig().num_elements, 0.0f);
+                    for (int i = 0; i < count; ++i) {
+                        ch_snap[0] = std::complex<float>(vfo->output->readBuf[i].re, vfo->output->readBuf[i].im);
+                        covAccumulator.feedSnapshot(ch_snap.data(), musicEngine.getConfig().num_elements);
+                    }
+                }
+
+                Eigen::MatrixXcf Rxx;
+                if (covAccumulator.getNormalizedCovariance(Rxx)) {
+                    rf_tools::doa::DOAResult res = musicEngine.computeDOA(Rxx, musicEngine.getConfig().num_snapshots);
+                    doaPanel.updateResult(res);
+                }
+            }
+
             vfo->output->flush();
         }
     }
@@ -193,6 +223,24 @@ private:
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Direction Finding (DOA)")) {
+                bool doa_on = mod->doaEnabled.load();
+                if (ImGui::Checkbox("Enable DOA Processing##rf_doa_on", &doa_on)) {
+                    mod->doaEnabled.store(doa_on);
+                }
+                ImGui::SameLine();
+                bool sim_on = mod->doaSimulationMode.load();
+                if (ImGui::Checkbox("Virtual Array Simulator##rf_doa_sim", &sim_on)) {
+                    mod->doaSimulationMode.store(sim_on);
+                }
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("Simulates multi-channel spatial wavefronts for real-time validation of MUSIC and Root-MUSIC.");
+                }
+                ImGui::Spacing();
+                mod->doaPanel.draw(mod->musicEngine, mod->covAccumulator);
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
     }
@@ -207,6 +255,14 @@ private:
     rf_tools::PRIAnalyzer priAnalyzer;
     rf_tools::PDWPanel pdwPanel;
     rf_tools::HistogramPanel histogramPanel;
+
+    // Direction Finding components
+    rf_tools::doa::CovarianceAccumulator covAccumulator;
+    rf_tools::doa::MUSICEngine musicEngine;
+    rf_tools::doa::ArraySynthesizer arraySynthesizer;
+    rf_tools::DOAPanel doaPanel;
+    std::atomic<bool> doaEnabled{ true };
+    std::atomic<bool> doaSimulationMode{ true };
 
     std::thread workerThread;
     std::atomic<bool> running{ false };
