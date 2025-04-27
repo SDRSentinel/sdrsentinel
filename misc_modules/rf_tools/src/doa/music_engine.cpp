@@ -314,7 +314,7 @@ DOAResult MUSICEngine::computeRootMUSIC(const Eigen::MatrixXcf& Rxx, size_t num_
     std::vector<float> angles;
     for (size_t i = 0; i < std::min(inside_roots.size(), D); ++i) {
         float phase = std::arg(inside_roots[i].z);
-        float cos_theta = phase / (2.0f * PI * config_.element_spacing);
+        float cos_theta = -phase / (2.0f * PI * config_.element_spacing);
         if (std::abs(cos_theta) <= 1.0f) {
             float angle_deg = std::acos(cos_theta) * RAD_TO_DEG;
             angles.push_back(angle_deg);
