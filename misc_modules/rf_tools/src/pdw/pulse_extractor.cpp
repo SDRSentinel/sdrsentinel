@@ -163,4 +163,32 @@ namespace rf_tools {
 
         return pdw;
     }
+
+    PDW PulseExtractor::extract(const RawPulse& rawPulse, const std::complex<float>* multichannel_data, size_t num_channels, doa::MUSICEngine* doa_engine) {
+        PDW pdw = extract(rawPulse);
+
+        if (multichannel_data && doa_engine && num_channels >= 2 && !rawPulse.samples.empty()) {
+            size_t pulse_len = rawPulse.samples.size();
+            Eigen::MatrixXcf Rxx_pulse = Eigen::MatrixXcf::Zero(num_channels, num_channels);
+
+            for (size_t n = 0; n < pulse_len; ++n) {
+                Eigen::VectorXcf x(num_channels);
+                for (size_t c = 0; c < num_channels; ++c) {
+                    x(c) = multichannel_data[n * num_channels + c];
+                }
+                Rxx_pulse.selfadjointView<Eigen::Upper>().rankUpdate(x);
+            }
+
+            Eigen::MatrixXcf full_Rxx = Rxx_pulse.selfadjointView<Eigen::Upper>();
+            full_Rxx /= static_cast<float>(pulse_len);
+
+            doa::DOAResult res = doa_engine->computeDOA(full_Rxx, pulse_len);
+            if (!res.estimated_angles_deg.empty()) {
+                pdw.doaAzimuth = res.estimated_angles_deg[0];
+                pdw.hasDoa = true;
+            }
+        }
+
+        return pdw;
+    }
 }

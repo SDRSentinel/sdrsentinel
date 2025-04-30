@@ -44,7 +44,19 @@ public:
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
             double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
             extractor.setCenterFrequency(currentCf);
-            rf_tools::PDW pdw = extractor.extract(rawPulse);
+
+            rf_tools::PDW pdw;
+            if (doaEnabled.load()) {
+                if (doaSimulationMode.load()) {
+                    auto synth_pulse = arraySynthesizer.generateSnapshots(rawPulse.samples.size(), static_cast<float>(sampleRate));
+                    pdw = extractor.extract(rawPulse, synth_pulse.data(), musicEngine.getConfig().num_elements, &musicEngine);
+                } else {
+                    pdw = extractor.extract(rawPulse);
+                }
+            } else {
+                pdw = extractor.extract(rawPulse);
+            }
+
             pdwPanel.addPDW(pdw);
             priAnalyzer.addPulse(pdw);
             histogramPanel.addPDW(pdw);

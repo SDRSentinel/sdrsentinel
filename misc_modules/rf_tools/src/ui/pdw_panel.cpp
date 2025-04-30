@@ -33,7 +33,7 @@ namespace rf_tools {
             return;
         }
 
-        csv << "PulseIndex,SampleIndex,TOA_s,PW_us,FreqOffset_Hz,AbsoluteFreq_Hz,PeakPwr_dBFS,AvgPwr_dBFS,SNR_dB,Noise_dBFS,PRI_us\n";
+        csv << "PulseIndex,SampleIndex,TOA_s,PW_us,FreqOffset_Hz,AbsoluteFreq_Hz,PeakPwr_dBFS,AvgPwr_dBFS,SNR_dB,Noise_dBFS,PRI_us,DOA_deg\n";
         for (const auto& p : _recentPdws) {
             csv << p.pulseIndex << ","
                 << p.sampleIndex << ","
@@ -45,7 +45,12 @@ namespace rf_tools {
                 << std::fixed << std::setprecision(2) << p.averagePower << ","
                 << std::fixed << std::setprecision(2) << p.snr << ","
                 << std::fixed << std::setprecision(2) << p.noiseFloor << ","
-                << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << "\n";
+                << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << ",";
+            if (p.hasDoa) {
+                csv << std::fixed << std::setprecision(1) << p.doaAzimuth << "\n";
+            } else {
+                csv << "NaN\n";
+            }
         }
         flog::info("Exported {0} PDW entries to {1}", (uint64_t)_recentPdws.size(), filepath);
     }
@@ -114,9 +119,9 @@ namespace rf_tools {
             ImGui::Spacing();
         }
 
-        // PDW table
+        // PDW table (9 columns: ID, TOA, PW, dF, Pk, Avg, SNR, PRI, DOA)
         int tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
-        if (ImGui::BeginTable("##pdw_table", 8, tableFlags, ImVec2(0, 240))) {
+        if (ImGui::BeginTable("##pdw_table", 9, tableFlags, ImVec2(0, 240))) {
             ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
             ImGui::TableSetupColumn("TOA (s)", ImGuiTableColumnFlags_WidthFixed, 75.0f);
             ImGui::TableSetupColumn("PW (us)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
@@ -125,6 +130,7 @@ namespace rf_tools {
             ImGui::TableSetupColumn("Avg (dBFS)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
             ImGui::TableSetupColumn("SNR (dB)", ImGuiTableColumnFlags_WidthFixed, 60.0f);
             ImGui::TableSetupColumn("PRI (us)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
+            ImGui::TableSetupColumn("DOA (deg)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
             ImGui::TableHeadersRow();
 
             std::lock_guard<std::mutex> lock(_mutex);
@@ -156,6 +162,13 @@ namespace rf_tools {
                     ImGui::Text("%.1f", p.pri * 1.0e6);
                 } else {
                     ImGui::Text("--");
+                }
+
+                ImGui::TableSetColumnIndex(8);
+                if (p.hasDoa && p.doaAzimuth >= 0.0f) {
+                    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "%.1f", p.doaAzimuth);
+                } else {
+                    ImGui::TextDisabled("--");
                 }
             }
 

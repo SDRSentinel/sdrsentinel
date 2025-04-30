@@ -16,5 +16,7 @@ namespace rf_tools {
         float noiseFloor = -120.0f;       // Estimated noise floor (dBFS)
         float phase = 0.0f;               // Initial phase (radians)
         double pri = 0.0;                 // Pulse Repetition Interval (seconds, 0 if first pulse)
+        float doaAzimuth = -1.0f;         // Angle of Arrival (degrees)
+        bool hasDoa = false;              // True if DOA was successfully estimated for this pulse
     };
 }
