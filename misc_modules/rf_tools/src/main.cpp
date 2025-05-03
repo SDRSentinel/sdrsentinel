@@ -18,6 +18,8 @@
 #include "doa/music_engine.h"
 #include "doa/array_synthesizer.h"
 #include "ui/doa_panel.h"
+#include "pri/emitter_tracker.h"
+#include "ui/emitter_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -60,6 +62,7 @@ public:
             pdwPanel.addPDW(pdw);
             priAnalyzer.addPulse(pdw);
             histogramPanel.addPDW(pdw);
+            emitterTracker.processPDW(pdw);
         });
 
         startWorker();
@@ -253,6 +256,11 @@ private:
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Emitter Tracking")) {
+                mod->emitterPanel.draw(mod->emitterTracker);
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
     }
@@ -267,6 +275,8 @@ private:
     rf_tools::PRIAnalyzer priAnalyzer;
     rf_tools::PDWPanel pdwPanel;
     rf_tools::HistogramPanel histogramPanel;
+    rf_tools::EmitterTracker emitterTracker;
+    rf_tools::EmitterPanel emitterPanel;
 
     // Direction Finding components
     rf_tools::doa::CovarianceAccumulator covAccumulator;
