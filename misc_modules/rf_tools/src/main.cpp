@@ -63,6 +63,9 @@ public:
             priAnalyzer.addPulse(pdw);
             histogramPanel.addPDW(pdw);
             emitterTracker.processPDW(pdw);
+            if (pdw.hasDoa) {
+                doaPanel.addPulseHit(pdw.doaAzimuth, pdw.averagePower);
+            }
         });
 
         startWorker();
