@@ -1,4 +1,5 @@
 #include "emitter_panel.h"
+#include "../export/sigmf_exporter.h"
 #include <imgui.h>
 #include <cmath>
 #include <algorithm>
@@ -31,6 +32,10 @@ void EmitterPanel::draw(EmitterTracker& tracker) {
         if (ImGui::Button("Reset All Tracks##emit_reset")) {
             tracker.reset();
             selected_emitter_id_ = -1;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Export Tracks (JSON)##emit_export_json")) {
+            SigMFExporter::exportJSON("recordings/emitter_tracks.json", {}, tracker.getEmitters(), 2000000.0, 0.0);
         }
     }
 

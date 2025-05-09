@@ -1,9 +1,11 @@
 #include "pdw_panel.h"
+#include "../export/sigmf_exporter.h"
 #include <imgui.h>
 #include <gui/gui.h>
 #include <gui/style.h>
 #include <fstream>
 #include <iomanip>
+#include <cstring>
 #include <utils/flog.h>
 
 namespace rf_tools {
@@ -23,36 +25,12 @@ namespace rf_tools {
         std::lock_guard<std::mutex> lock(_mutex);
         _recentPdws.clear();
         _totalPulses = 0;
+        _statusMsg[0] = '\0';
     }
 
-    void PDWPanel::exportToCsv(const std::string& filepath) {
+    std::vector<PDW> PDWPanel::getRecentPdws() const {
         std::lock_guard<std::mutex> lock(_mutex);
-        std::ofstream csv(filepath);
-        if (!csv.is_open()) {
-            flog::error("Could not open file for PDW CSV export: {0}", filepath);
-            return;
-        }
-
-        csv << "PulseIndex,SampleIndex,TOA_s,PW_us,FreqOffset_Hz,AbsoluteFreq_Hz,PeakPwr_dBFS,AvgPwr_dBFS,SNR_dB,Noise_dBFS,PRI_us,DOA_deg\n";
-        for (const auto& p : _recentPdws) {
-            csv << p.pulseIndex << ","
-                << p.sampleIndex << ","
-                << std::fixed << std::setprecision(6) << p.toa << ","
-                << std::fixed << std::setprecision(3) << (p.pulseWidth * 1.0e6) << ","
-                << std::fixed << std::setprecision(1) << p.frequencyOffset << ","
-                << std::fixed << std::setprecision(1) << p.absoluteFrequency << ","
-                << std::fixed << std::setprecision(2) << p.peakPower << ","
-                << std::fixed << std::setprecision(2) << p.averagePower << ","
-                << std::fixed << std::setprecision(2) << p.snr << ","
-                << std::fixed << std::setprecision(2) << p.noiseFloor << ","
-                << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << ",";
-            if (p.hasDoa) {
-                csv << std::fixed << std::setprecision(1) << p.doaAzimuth << "\n";
-            } else {
-                csv << "NaN\n";
-            }
-        }
-        flog::info("Exported {0} PDW entries to {1}", (uint64_t)_recentPdws.size(), filepath);
+        return std::vector<PDW>(_recentPdws.begin(), _recentPdws.end());
     }
 
     void PDWPanel::draw(PulseDetector& detector, double centerFreq, double vfoBw) {
@@ -106,11 +84,46 @@ namespace rf_tools {
             clear();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Export CSV##pdw_export")) {
-            exportToCsv(_exportPath);
-        }
-        ImGui::SameLine();
         ImGui::Checkbox("Auto-scroll", &_autoScroll);
+
+        // Export and SigMF Section
+        if (ImGui::CollapsingHeader("Export & SigMF Recording##pdw_export_hdr")) {
+            const char* formats[] = { "CSV (.csv)", "JSON Session (.json)", "SigMF Metadata (.sigmf-meta)" };
+            if (ImGui::Combo("Format##pdw_exp_fmt", &_exportFormatIdx, formats, IM_ARRAYSIZE(formats))) {
+                if (_exportFormatIdx == 0) {
+                    std::strncpy(_exportPath, "recordings/pdw_log.csv", sizeof(_exportPath));
+                } else if (_exportFormatIdx == 1) {
+                    std::strncpy(_exportPath, "recordings/pdw_session.json", sizeof(_exportPath));
+                } else {
+                    std::strncpy(_exportPath, "recordings/pdw_capture.sigmf-meta", sizeof(_exportPath));
+                }
+            }
+
+            ImGui::InputText("Target File##pdw_exp_path", _exportPath, sizeof(_exportPath));
+
+            if (ImGui::Button("Export Data Now##pdw_btn_export")) {
+                auto pdws = getRecentPdws();
+                bool ok = false;
+                if (_exportFormatIdx == 0) {
+                    ok = SigMFExporter::exportCSV(_exportPath, pdws);
+                } else if (_exportFormatIdx == 1) {
+                    ok = SigMFExporter::exportJSON(_exportPath, pdws, {}, 2000000.0, centerFreq);
+                } else {
+                    ok = SigMFExporter::exportSigMF(_exportPath, pdws, 2000000.0, centerFreq);
+                }
+
+                if (ok) {
+                    std::snprintf(_statusMsg, sizeof(_statusMsg), "Exported %zu PDWs", pdws.size());
+                } else {
+                    std::snprintf(_statusMsg, sizeof(_statusMsg), "Export failed");
+                }
+            }
+
+            if (_statusMsg[0] != '\0') {
+                ImGui::SameLine();
+                ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "%s", _statusMsg);
+            }
+        }
 
         ImGui::Separator();
 

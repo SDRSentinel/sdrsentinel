@@ -2,6 +2,7 @@
 #include "../pdw/pdw.h"
 #include "../pdw/pulse_detector.h"
 #include <deque>
+#include <vector>
 #include <mutex>
 #include <string>
 
@@ -17,10 +18,9 @@ namespace rf_tools {
         void draw(PulseDetector& detector, double centerFreq, double vfoBw);
 
         size_t getTotalPulsesDetected() const { return _totalPulses; }
+        std::vector<PDW> getRecentPdws() const;
 
     private:
-        void exportToCsv(const std::string& filepath);
-
         mutable std::mutex _mutex;
         std::deque<PDW> _recentPdws;
         static constexpr size_t MAX_STORED_PDWS = 200;
@@ -31,6 +31,9 @@ namespace rf_tools {
         float _guiMinPwUs = 0.5f;
         float _guiMaxPwUs = 500.0f;
         bool _autoScroll = true;
+
+        int _exportFormatIdx = 0; // 0: CSV, 1: JSON, 2: SigMF
         char _exportPath[256] = "recordings/pdw_log.csv";
+        char _statusMsg[128] = "";
     };
 }
