@@ -10,6 +10,7 @@
 #include "../src/doa/covariance_accumulator.h"
 #include "../src/doa/music_engine.h"
 #include "../src/doa/array_synthesizer.h"
+#include "../src/doa/coherent_bus.h"
 
 using namespace rf_tools::doa;
 
@@ -239,6 +240,44 @@ void test_crlb_benchmark() {
     std::cout << "  -> PASSED." << std::endl;
 }
 
+void test_coherent_bus() {
+    std::cout << "[TEST] 5. Multi-Channel Coherent Bus & Snapshot Queue..." << std::endl;
+
+    CoherentBus bus;
+    bus.setSourceType(CoherentSourceType::NETWORK_STREAM);
+
+    // Create a 4-channel coherent frame with 128 samples
+    CoherentFrame frame;
+    frame.channelCount = 4;
+    frame.sampleCount = 128;
+    frame.timestamp = 1000;
+    frame.channelData.resize(4);
+    for (size_t ch = 0; ch < 4; ++ch) {
+        frame.channelData[ch].resize(128);
+        for (size_t s = 0; s < 128; ++s) {
+            frame.channelData[ch][s] = std::polar(1.0f, static_cast<float>(ch) * 0.5f + static_cast<float>(s) * 0.1f);
+        }
+    }
+
+    bus.pushFrame(frame);
+    assert(bus.getBufferedSnapshots() == 128 && "Buffer must hold 128 snapshots");
+
+    // Extract 64 snapshots
+    std::vector<std::complex<float>> outSnapshots;
+    bool ok = bus.getSnapshots(outSnapshots, 4, 64);
+    assert(ok && "Must successfully retrieve 64 snapshots");
+    assert(outSnapshots.size() == 64 * 4 && "Interleaved buffer size must be 256");
+
+    // Verify sample correctness
+    assert(std::abs(outSnapshots[0] - frame.channelData[0][0]) < 1e-6f);
+    assert(std::abs(outSnapshots[1] - frame.channelData[1][0]) < 1e-6f);
+    assert(std::abs(outSnapshots[2] - frame.channelData[2][0]) < 1e-6f);
+    assert(std::abs(outSnapshots[3] - frame.channelData[3][0]) < 1e-6f);
+
+    assert(bus.getBufferedSnapshots() == 64 && "Buffer must have 64 remaining snapshots");
+    std::cout << "  -> PASSED. 4-channel coherent frame buffered and interleaved with zero error." << std::endl;
+}
+
 int main() {
     std::cout << "============================================================" << std::endl;
     std::cout << "   rf_tools Direction Finding (DOA) Automated Test Suite    " << std::endl;
@@ -248,6 +287,7 @@ int main() {
     test_root_music_ula_accuracy();
     test_calibration_subspace();
     test_crlb_benchmark();
+    test_coherent_bus();
 
     std::cout << "============================================================" << std::endl;
     std::cout << "   ALL TESTS PASSED SUCCESSFULLY!                           " << std::endl;

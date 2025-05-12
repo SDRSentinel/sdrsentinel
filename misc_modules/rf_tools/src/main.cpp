@@ -17,6 +17,7 @@
 #include "doa/covariance_accumulator.h"
 #include "doa/music_engine.h"
 #include "doa/array_synthesizer.h"
+#include "doa/coherent_bus.h"
 #include "ui/doa_panel.h"
 #include "pri/emitter_tracker.h"
 #include "ui/emitter_panel.h"
@@ -49,9 +50,18 @@ public:
 
             rf_tools::PDW pdw;
             if (doaEnabled.load()) {
-                if (doaSimulationMode.load()) {
-                    auto synth_pulse = arraySynthesizer.generateSnapshots(rawPulse.samples.size(), static_cast<float>(sampleRate));
-                    pdw = extractor.extract(rawPulse, synth_pulse.data(), musicEngine.getConfig().num_elements, &musicEngine);
+                size_t M = musicEngine.getConfig().num_elements;
+                size_t Npulse = rawPulse.samples.size();
+                if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
+                    auto synth_pulse = arraySynthesizer.generateSnapshots(Npulse, static_cast<float>(sampleRate));
+                    pdw = extractor.extract(rawPulse, synth_pulse.data(), M, &musicEngine);
+                } else if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
+                    std::vector<std::complex<float>> net_pulse;
+                    if (coherentBus.getSnapshots(net_pulse, M, Npulse)) {
+                        pdw = extractor.extract(rawPulse, net_pulse.data(), M, &musicEngine);
+                    } else {
+                        pdw = extractor.extract(rawPulse);
+                    }
                 } else {
                     pdw = extractor.extract(rawPulse);
                 }
@@ -184,21 +194,30 @@ private:
 
             // Direction Finding (DOA) Processing
             if (doaEnabled.load()) {
-                if (doaSimulationMode.load()) {
-                    auto synth_snapshots = arraySynthesizer.generateSnapshots(256, static_cast<float>(sampleRate));
-                    covAccumulator.feedSnapshotsInterleaved(synth_snapshots.data(), musicEngine.getConfig().num_elements, 256);
+                auto srcType = coherentBus.getSourceType();
+                size_t M = musicEngine.getConfig().num_elements;
+                size_t K = musicEngine.getConfig().num_snapshots;
+
+                if (srcType == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
+                    auto synth_snapshots = arraySynthesizer.generateSnapshots(K, static_cast<float>(sampleRate));
+                    covAccumulator.feedSnapshotsInterleaved(synth_snapshots.data(), M, K);
+                } else if (srcType == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
+                    std::vector<std::complex<float>> net_snapshots;
+                    if (coherentBus.getSnapshots(net_snapshots, M, K)) {
+                        covAccumulator.feedSnapshotsInterleaved(net_snapshots.data(), M, K);
+                    }
                 } else {
                     // Feed single-channel stream to array channel 0
-                    std::vector<std::complex<float>> ch_snap(musicEngine.getConfig().num_elements, 0.0f);
+                    std::vector<std::complex<float>> ch_snap(M, 0.0f);
                     for (int i = 0; i < count; ++i) {
                         ch_snap[0] = std::complex<float>(vfo->output->readBuf[i].re, vfo->output->readBuf[i].im);
-                        covAccumulator.feedSnapshot(ch_snap.data(), musicEngine.getConfig().num_elements);
+                        covAccumulator.feedSnapshot(ch_snap.data(), M);
                     }
                 }
 
                 Eigen::MatrixXcf Rxx;
                 if (covAccumulator.getNormalizedCovariance(Rxx)) {
-                    rf_tools::doa::DOAResult res = musicEngine.computeDOA(Rxx, musicEngine.getConfig().num_snapshots);
+                    rf_tools::doa::DOAResult res = musicEngine.computeDOA(Rxx, K);
                     doaPanel.updateResult(res);
                 }
             }
@@ -243,16 +262,33 @@ private:
 
             if (ImGui::BeginTabItem("Direction Finding (DOA)")) {
                 bool doa_on = mod->doaEnabled.load();
-                if (ImGui::Checkbox("Enable DOA Processing##rf_doa_on", &doa_on)) {
+                if (ImGui::Checkbox("Enable DOA##rf_doa_on", &doa_on)) {
                     mod->doaEnabled.store(doa_on);
                 }
                 ImGui::SameLine();
-                bool sim_on = mod->doaSimulationMode.load();
-                if (ImGui::Checkbox("Virtual Array Simulator##rf_doa_sim", &sim_on)) {
-                    mod->doaSimulationMode.store(sim_on);
+                const char* src_modes[] = { "Virtual Array Simulator", "Coherent Hardware (UDP)", "Single-VFO Tap" };
+                int current_src = static_cast<int>(mod->coherentBus.getSourceType());
+                ImGui::SetNextItemWidth(180.0f);
+                if (ImGui::Combo("Source##rf_doa_source", &current_src, src_modes, IM_ARRAYSIZE(src_modes))) {
+                    mod->coherentBus.setSourceType(static_cast<rf_tools::doa::CoherentSourceType>(current_src));
                 }
-                if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("Simulates multi-channel spatial wavefronts for real-time validation of MUSIC and Root-MUSIC.");
+
+                if (mod->coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
+                    bool net_running = mod->coherentBus.isNetworkReceiverRunning();
+                    if (!net_running) {
+                        if (ImGui::Button("Start UDP Receiver (:5000)##rf_udp_start")) {
+                            mod->coherentBus.startNetworkReceiver(5000);
+                        }
+                    } else {
+                        if (ImGui::Button("Stop UDP Receiver##rf_udp_stop")) {
+                            mod->coherentBus.stopNetworkReceiver();
+                        }
+                        ImGui::SameLine();
+                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "UDP :%u | Frames: %llu (Drop: %llu)",
+                            mod->coherentBus.getNetworkPort(),
+                            (unsigned long long)mod->coherentBus.getFramesReceived(),
+                            (unsigned long long)mod->coherentBus.getFramesDropped());
+                    }
                 }
                 ImGui::Spacing();
                 mod->doaPanel.draw(mod->musicEngine, mod->covAccumulator);
@@ -285,9 +321,9 @@ private:
     rf_tools::doa::CovarianceAccumulator covAccumulator;
     rf_tools::doa::MUSICEngine musicEngine;
     rf_tools::doa::ArraySynthesizer arraySynthesizer;
+    rf_tools::doa::CoherentBus coherentBus;
     rf_tools::DOAPanel doaPanel;
     std::atomic<bool> doaEnabled{ true };
-    std::atomic<bool> doaSimulationMode{ true };
 
     std::thread workerThread;
     std::atomic<bool> running{ false };

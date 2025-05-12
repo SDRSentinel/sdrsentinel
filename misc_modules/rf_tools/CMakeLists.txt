@@ -28,6 +28,7 @@ add_executable(test_rf_tools_doa
     src/doa/covariance_accumulator.cpp
     src/doa/music_engine.cpp
     src/doa/array_synthesizer.cpp
+    src/doa/coherent_bus.cpp
 )
 target_include_directories(test_rf_tools_doa PRIVATE "src/")
 target_compile_features(test_rf_tools_doa PRIVATE cxx_std_17)
