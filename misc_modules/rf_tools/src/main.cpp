@@ -19,6 +19,7 @@
 #include "doa/array_synthesizer.h"
 #include "doa/coherent_bus.h"
 #include "ui/doa_panel.h"
+#include "ui/scope_panel.h"
 #include "pri/emitter_tracker.h"
 #include "ui/emitter_panel.h"
 
@@ -73,6 +74,7 @@ public:
             priAnalyzer.addPulse(pdw);
             histogramPanel.addPDW(pdw);
             emitterTracker.processPDW(pdw);
+            scopePanel.loadPulse(rawPulse, sampleRate, currentCf);
             if (pdw.hasDoa) {
                 doaPanel.addPulseHit(pdw.doaAzimuth, pdw.averagePower);
             }
@@ -300,6 +302,11 @@ private:
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Signal Inspector (MOP)")) {
+                mod->scopePanel.draw();
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
     }
@@ -316,6 +323,7 @@ private:
     rf_tools::HistogramPanel histogramPanel;
     rf_tools::EmitterTracker emitterTracker;
     rf_tools::EmitterPanel emitterPanel;
+    rf_tools::ScopePanel scopePanel;
 
     // Direction Finding components
     rf_tools::doa::CovarianceAccumulator covAccumulator;
