@@ -14,6 +14,7 @@ struct SyntheticSource {
     bool is_coherent = false; // If true, coherently tied to source 0 (multipath reflection)
     float coherent_attenuation = 0.7f;
     float coherent_phase_deg = 30.0f;
+    float elevation_deg = 20.0f; // Elevation angle for 2D URA arrays [0..90]
 };
 
 class ArraySynthesizer {

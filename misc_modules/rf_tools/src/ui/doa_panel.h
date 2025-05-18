@@ -43,6 +43,7 @@ private:
     void drawRadarPPI(const std::vector<float>& angles, float radius);
     void drawAzimuthWaterfall(float width, float height);
     void drawSpectrumPlot(const std::vector<float>& angles, const std::vector<float>& spectrum_db);
+    void drawAzimuthElevationHeatmap(float width, float height, const doa::DOAResult& res);
 
     doa::DOAConfig config_;
     doa::DOAResult latest_result_;
@@ -66,8 +67,10 @@ private:
     // UI state
     DOADisplayMode display_mode_ = DOADisplayMode::ALL;
     int ui_display_mode_idx_ = 0;
-    int ui_geometry_idx_ = 0; // 0: ULA, 1: UCA
+    int ui_geometry_idx_ = 0; // 0: ULA, 1: UCA, 2: URA (2D)
     int ui_num_elements_ = 4;
+    int ui_elements_x_ = 2;
+    int ui_elements_y_ = 2;
     float ui_spacing_ = 0.5f;
     int ui_snapshots_ = 256;
     float ui_forgetting_ = 0.0f;

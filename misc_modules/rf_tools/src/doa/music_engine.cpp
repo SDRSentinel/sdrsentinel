@@ -113,9 +113,34 @@ Eigen::VectorXcf MUSICEngine::getSteeringVectorUCA(float theta_rad) const {
     return a;
 }
 
+Eigen::VectorXcf MUSICEngine::getSteeringVectorURA(float azimuth_rad, float elevation_rad) const {
+    size_t Mx = config_.num_elements_x > 0 ? config_.num_elements_x : 2;
+    size_t My = config_.num_elements_y > 0 ? config_.num_elements_y : 2;
+    size_t M = Mx * My;
+
+    Eigen::VectorXcf a(M);
+    float dx = config_.element_spacing;
+    float dy = config_.element_spacing_y > 0.0f ? config_.element_spacing_y : config_.element_spacing;
+
+    float cos_el = std::cos(elevation_rad);
+    float u = cos_el * std::cos(azimuth_rad);
+    float v = cos_el * std::sin(azimuth_rad);
+
+    for (size_t my = 0; my < My; ++my) {
+        for (size_t mx = 0; mx < Mx; ++mx) {
+            size_t idx = my * Mx + mx;
+            float phase = -2.0f * PI * (static_cast<float>(mx) * dx * u + static_cast<float>(my) * dy * v);
+            a(idx) = std::complex<float>(std::cos(phase), std::sin(phase));
+        }
+    }
+    return a;
+}
+
 Eigen::VectorXcf MUSICEngine::getSteeringVector(float theta_rad) const {
     if (config_.geometry == ArrayGeometry::UCA) {
         return getSteeringVectorUCA(theta_rad);
+    } else if (config_.geometry == ArrayGeometry::URA) {
+        return getSteeringVectorURA(theta_rad, 0.0f);
     }
     return getSteeringVectorULA(theta_rad);
 }
@@ -331,8 +356,118 @@ DOAResult MUSICEngine::computeRootMUSIC(const Eigen::MatrixXcf& Rxx, size_t num_
     return res;
 }
 
+DOAResult MUSICEngine::computeSpectralMUSIC2D(const Eigen::MatrixXcf& Rxx, size_t num_snapshots) {
+    DOAResult res;
+    res.is_2d = true;
+    const size_t M = Rxx.rows();
+    if (M < 4) return res;
+
+    // 1. Eigenvalue decomposition
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcf> solver(Rxx);
+    Eigen::VectorXf eigvals = solver.eigenvalues().reverse();
+    Eigen::MatrixXcf eigvecs = solver.eigenvectors().rowwise().reverse();
+
+    // 2. Model order selection
+    size_t D = config_.auto_model_order ? estimateModelOrderMDL(eigvals, num_snapshots) : config_.expected_sources;
+    D = std::clamp<size_t>(D, 1, M - 1);
+    res.model_order = D;
+
+    // 3. Noise subspace projection matrix Pi_N
+    Eigen::MatrixXcf U_N = eigvecs.rightCols(M - D);
+    Eigen::MatrixXcf Pi_N = U_N * U_N.adjoint();
+
+    // 4. Scan 2D spatial grid (Azimuth [0, 360], Elevation [0, 90])
+    float az_step_deg = 3.0f;
+    float el_step_deg = 3.0f;
+
+    size_t num_az = static_cast<size_t>(360.0f / az_step_deg) + 1;
+    size_t num_el = static_cast<size_t>(90.0f / el_step_deg) + 1;
+
+    res.spectrum_azimuths_deg.resize(num_az);
+    for (size_t a = 0; a < num_az; ++a) {
+        res.spectrum_azimuths_deg[a] = static_cast<float>(a) * az_step_deg;
+    }
+
+    res.spectrum_elevations_deg.resize(num_el);
+    for (size_t e = 0; e < num_el; ++e) {
+        res.spectrum_elevations_deg[e] = static_cast<float>(e) * el_step_deg;
+    }
+
+    res.pseudo_spectrum_2d_db.resize(num_el * num_az);
+    std::vector<float> linear_grid(num_el * num_az);
+    float max_pwr = 1e-12f;
+
+    for (size_t e = 0; e < num_el; ++e) {
+        float el_rad = res.spectrum_elevations_deg[e] * DEG_TO_RAD;
+        for (size_t a = 0; a < num_az; ++a) {
+            float az_rad = res.spectrum_azimuths_deg[a] * DEG_TO_RAD;
+
+            Eigen::VectorXcf a_vec = getSteeringVectorURA(az_rad, el_rad);
+            std::complex<float> denom = a_vec.adjoint() * Pi_N * a_vec;
+            float pwr = 1.0f / std::max(denom.real(), 1e-12f);
+            linear_grid[e * num_az + a] = pwr;
+            if (pwr > max_pwr) {
+                max_pwr = pwr;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < linear_grid.size(); ++i) {
+        res.pseudo_spectrum_2d_db[i] = 10.0f * std::log10(std::max(linear_grid[i] / max_pwr, 1e-5f));
+    }
+    res.min_2d_db = -40.0f;
+    res.max_2d_db = 0.0f;
+
+    // 5. 2D Peak extraction
+    struct Peak2D {
+        float az_deg;
+        float el_deg;
+        float power;
+    };
+    std::vector<Peak2D> peaks;
+
+    for (size_t e = 1; e < num_el - 1; ++e) {
+        for (size_t a = 1; a < num_az - 1; ++a) {
+            float val = res.pseudo_spectrum_2d_db[e * num_az + a];
+            if (val < -25.0f) continue;
+
+            bool is_max = true;
+            for (int de = -1; de <= 1 && is_max; ++de) {
+                for (int da = -1; da <= 1; ++da) {
+                    if (de == 0 && da == 0) continue;
+                    if (res.pseudo_spectrum_2d_db[(e + de) * num_az + (a + da)] >= val) {
+                        is_max = false;
+                        break;
+                    }
+                }
+            }
+
+            if (is_max) {
+                peaks.push_back({res.spectrum_azimuths_deg[a], res.spectrum_elevations_deg[e], val});
+            }
+        }
+    }
+
+    std::sort(peaks.begin(), peaks.end(), [](const Peak2D& p1, const Peak2D& p2) {
+        return p1.power > p2.power;
+    });
+
+    for (size_t i = 0; i < std::min(peaks.size(), D); ++i) {
+        Target2D target;
+        target.azimuth_deg = peaks[i].az_deg;
+        target.elevation_deg = peaks[i].el_deg;
+        target.power_db = peaks[i].power;
+        res.estimated_targets_2d.push_back(target);
+        res.estimated_angles_deg.push_back(target.azimuth_deg);
+    }
+
+    return res;
+}
+
 DOAResult MUSICEngine::computeDOA(const Eigen::MatrixXcf& Rxx, size_t num_snapshots) {
-    if (config_.geometry == ArrayGeometry::ULA) {
+    if (config_.geometry == ArrayGeometry::URA) {
+        return computeSpectralMUSIC2D(Rxx, num_snapshots);
+    } else if (config_.geometry == ArrayGeometry::ULA) {
         return computeRootMUSIC(Rxx, num_snapshots);
     }
     return computeSpectralMUSIC(Rxx, num_snapshots);

@@ -278,6 +278,62 @@ void test_coherent_bus() {
     std::cout << "  -> PASSED. 4-channel coherent frame buffered and interleaved with zero error." << std::endl;
 }
 
+void test_ura_2d_music() {
+    std::cout << "[TEST] 6. 2D Uniform Rectangular Array (URA) MUSIC (Azimuth + Elevation)..." << std::endl;
+
+    MUSICEngine engine;
+    DOAConfig cfg;
+    cfg.geometry = ArrayGeometry::URA;
+    cfg.num_elements_x = 4;
+    cfg.num_elements_y = 4;
+    cfg.num_elements = 16;
+    cfg.element_spacing = 0.5f;
+    cfg.element_spacing_y = 0.5f;
+    cfg.expected_sources = 1;
+    cfg.auto_model_order = false;
+    engine.setConfig(cfg);
+
+    ArraySynthesizer synth;
+    synth.setArrayConfig(cfg);
+
+    float true_az = 60.0f;
+    float true_el = 36.0f;
+    SyntheticSource src;
+    src.angle_deg = true_az;
+    src.elevation_deg = true_el;
+    src.power_db = 0.0f;
+    synth.setSources({src});
+    synth.setNoiseFloor(-20.0f);
+
+    CovarianceAccumulator acc;
+    acc.init(16, 256, 0.0f, false);
+
+    auto snapshots = synth.generateSnapshots(256);
+    acc.feedSnapshotsInterleaved(snapshots.data(), 16, 256);
+
+    Eigen::MatrixXcf Rxx;
+    acc.getNormalizedCovariance(Rxx);
+
+    DOAResult res = engine.computeDOA(Rxx, 256);
+    assert(res.is_2d && "Result must be marked as 2D");
+    assert(!res.estimated_targets_2d.empty() && "Must detect 2D target");
+
+    float est_az = res.estimated_targets_2d[0].azimuth_deg;
+    float est_el = res.estimated_targets_2d[0].elevation_deg;
+
+    float err_az = std::abs(est_az - true_az);
+    float err_el = std::abs(est_el - true_el);
+
+    std::cout << "  -> True: (Az = " << true_az << " deg, El = " << true_el << " deg) | Estimated: (Az = "
+              << est_az << " deg, El = " << est_el << " deg)" << std::endl;
+    std::cout << "  -> Azimuth Error: " << err_az << " deg | Elevation Error: " << err_el << " deg" << std::endl;
+
+    assert(err_az <= 3.0f && "Azimuth error must be within grid step resolution");
+    assert(err_el <= 3.0f && "Elevation error must be within grid step resolution");
+
+    std::cout << "  -> PASSED." << std::endl;
+}
+
 int main() {
     std::cout << "============================================================" << std::endl;
     std::cout << "   rf_tools Direction Finding (DOA) Automated Test Suite    " << std::endl;
@@ -288,6 +344,7 @@ int main() {
     test_calibration_subspace();
     test_crlb_benchmark();
     test_coherent_bus();
+    test_ura_2d_music();
 
     std::cout << "============================================================" << std::endl;
     std::cout << "   ALL TESTS PASSED SUCCESSFULLY!                           " << std::endl;

@@ -10,7 +10,7 @@ static constexpr float DEG_TO_RAD = PI / 180.0f;
 ArraySynthesizer::ArraySynthesizer()
     : rng_(1337), normal_dist_(0.0f, 1.0f) {
     config_ = DOAConfig{};
-    sources_.push_back({ 45.0f, 0.0f, 0.0f, false, 0.7f, 30.0f });
+    sources_.push_back({ 45.0f, 0.0f, 0.0f, false, 0.7f, 30.0f, 20.0f });
     setNoiseFloor(-30.0f);
 }
 
@@ -54,6 +54,24 @@ std::vector<std::complex<float>> ArraySynthesizer::generateSnapshots(size_t num_
                 float loc = config_.element_spacing * 0.5f * (static_cast<float>(M) - 1.0f - 2.0f * static_cast<float>(m));
                 float phase = -2.0f * PI * std::cos(theta_rad) * loc;
                 steering_vectors[s][m] = std::complex<float>(std::cos(phase), std::sin(phase));
+            }
+        } else if (config_.geometry == ArrayGeometry::URA) {
+            size_t Mx = config_.num_elements_x > 0 ? config_.num_elements_x : 2;
+            size_t My = config_.num_elements_y > 0 ? config_.num_elements_y : 2;
+            float dx = config_.element_spacing;
+            float dy = config_.element_spacing_y > 0.0f ? config_.element_spacing_y : config_.element_spacing;
+            float el_rad = sources_[s].elevation_deg * DEG_TO_RAD;
+            float u = std::cos(el_rad) * std::cos(theta_rad);
+            float v = std::cos(el_rad) * std::sin(theta_rad);
+
+            for (size_t my = 0; my < My; ++my) {
+                for (size_t mx = 0; mx < Mx; ++mx) {
+                    size_t m = my * Mx + mx;
+                    if (m < M) {
+                        float phase = -2.0f * PI * (static_cast<float>(mx) * dx * u + static_cast<float>(my) * dy * v);
+                        steering_vectors[s][m] = std::complex<float>(std::cos(phase), std::sin(phase));
+                    }
+                }
             }
         } else {
             float radius = config_.element_spacing / (2.0f * std::sin(PI / static_cast<float>(M)));

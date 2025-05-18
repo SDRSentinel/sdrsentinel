@@ -111,15 +111,33 @@ void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumu
     if (ImGui::CollapsingHeader("Array Configuration##doa_cfg", ImGuiTreeNodeFlags_DefaultOpen)) {
         bool config_changed = false;
 
-        const char* geometries[] = { "Uniform Linear Array (ULA)", "Uniform Circular Array (UCA)" };
+        const char* geometries[] = { "Uniform Linear Array (ULA)", "Uniform Circular Array (UCA)", "Uniform Rectangular Array (URA - 2D)" };
         if (ImGui::Combo("Array Geometry##doa_geom", &ui_geometry_idx_, geometries, IM_ARRAYSIZE(geometries))) {
-            config_.geometry = (ui_geometry_idx_ == 0) ? doa::ArrayGeometry::ULA : doa::ArrayGeometry::UCA;
+            if (ui_geometry_idx_ == 0) config_.geometry = doa::ArrayGeometry::ULA;
+            else if (ui_geometry_idx_ == 1) config_.geometry = doa::ArrayGeometry::UCA;
+            else config_.geometry = doa::ArrayGeometry::URA;
             config_changed = true;
         }
 
-        if (ImGui::SliderInt("Elements (M)##doa_m", &ui_num_elements_, 2, 16)) {
-            config_.num_elements = static_cast<size_t>(ui_num_elements_);
-            config_changed = true;
+        if (ui_geometry_idx_ == 2) {
+            if (ImGui::SliderInt("Elements X (Mx)##doa_mx", &ui_elements_x_, 2, 8)) {
+                config_.num_elements_x = static_cast<size_t>(ui_elements_x_);
+                config_.num_elements = config_.num_elements_x * config_.num_elements_y;
+                ui_num_elements_ = static_cast<int>(config_.num_elements);
+                config_changed = true;
+            }
+            if (ImGui::SliderInt("Elements Y (My)##doa_my", &ui_elements_y_, 2, 8)) {
+                config_.num_elements_y = static_cast<size_t>(ui_elements_y_);
+                config_.num_elements = config_.num_elements_x * config_.num_elements_y;
+                ui_num_elements_ = static_cast<int>(config_.num_elements);
+                config_changed = true;
+            }
+            ImGui::Text("Total Channels: %zu (%zux%zu Planar)", config_.num_elements, config_.num_elements_x, config_.num_elements_y);
+        } else {
+            if (ImGui::SliderInt("Elements (M)##doa_m", &ui_num_elements_, 2, 16)) {
+                config_.num_elements = static_cast<size_t>(ui_num_elements_);
+                config_changed = true;
+            }
         }
 
         if (ImGui::SliderFloat("Spacing (d / lambda)##doa_d", &ui_spacing_, 0.1f, 1.0f, "%.2f")) {
@@ -217,23 +235,38 @@ void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumu
 
         ImGui::NextColumn();
 
-        ImGui::Text("Detected Targets (%zu)", result_copy.estimated_angles_deg.size());
-        if (result_copy.estimated_angles_deg.empty()) {
-            ImGui::TextDisabled("Searching azimuth wavefronts...");
-        } else {
-            for (size_t i = 0; i < result_copy.estimated_angles_deg.size(); ++i) {
-                float angle = result_copy.estimated_angles_deg[i];
-                ImGui::BulletText("Target %zu:  %.2f deg", i + 1, angle);
+        if (result_copy.is_2d) {
+            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "2D Detected Targets (Az & El: %zu)", result_copy.estimated_targets_2d.size());
+            if (result_copy.estimated_targets_2d.empty()) {
+                ImGui::TextDisabled("Searching 2D azimuth-elevation wavefronts...");
+            } else {
+                for (size_t i = 0; i < result_copy.estimated_targets_2d.size(); ++i) {
+                    const auto& tgt = result_copy.estimated_targets_2d[i];
+                    ImGui::BulletText("Target %zu: Az = %.1f* | El = %.1f*", i + 1, tgt.azimuth_deg, tgt.elevation_deg);
+                }
             }
+            ImGui::Spacing();
+            ImGui::Text("2D Spatial Heatmap (Azimuth vs Elevation)");
+            drawAzimuthElevationHeatmap(ImGui::GetContentRegionAvail().x, 140.0f, result_copy);
+        } else {
+            ImGui::Text("Detected Targets (%zu)", result_copy.estimated_angles_deg.size());
+            if (result_copy.estimated_angles_deg.empty()) {
+                ImGui::TextDisabled("Searching azimuth wavefronts...");
+            } else {
+                for (size_t i = 0; i < result_copy.estimated_angles_deg.size(); ++i) {
+                    float angle = result_copy.estimated_angles_deg[i];
+                    ImGui::BulletText("Target %zu:  %.2f deg", i + 1, angle);
+                }
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Azimuth vs Time Waterfall");
+            drawAzimuthWaterfall(ImGui::GetContentRegionAvail().x, 130.0f);
+
+            ImGui::Spacing();
+            ImGui::Text("Spatial MUSIC Pseudo-Spectrum (dB)");
+            drawSpectrumPlot(result_copy.spectrum_angles_deg, result_copy.pseudo_spectrum_db);
         }
-
-        ImGui::Spacing();
-        ImGui::Text("Azimuth vs Time Waterfall");
-        drawAzimuthWaterfall(ImGui::GetContentRegionAvail().x, 130.0f);
-
-        ImGui::Spacing();
-        ImGui::Text("Spatial MUSIC Pseudo-Spectrum (dB)");
-        drawSpectrumPlot(result_copy.spectrum_angles_deg, result_copy.pseudo_spectrum_db);
 
         ImGui::Columns(1);
     } else if (display_mode_ == DOADisplayMode::POLAR_COMPASS) {
@@ -558,6 +591,72 @@ void DOAPanel::drawSpectrumPlot(const std::vector<float>& angles, const std::vec
                      -40.0f,
                      0.0f,
                      ImVec2(width, height));
+}
+
+void DOAPanel::drawAzimuthElevationHeatmap(float width, float height, const doa::DOAResult& res) {
+    if (!res.is_2d || res.pseudo_spectrum_2d_db.empty() || res.spectrum_azimuths_deg.empty() || res.spectrum_elevations_deg.empty()) {
+        ImGui::TextDisabled("Awaiting 2D spatial covariance matrix...");
+        return;
+    }
+
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    draw_list->AddRectFilled(cursor, ImVec2(cursor.x + width, cursor.y + height), IM_COL32(10, 14, 18, 255));
+
+    size_t num_az = res.spectrum_azimuths_deg.size();
+    size_t num_el = res.spectrum_elevations_deg.size();
+
+    float cellW = width / static_cast<float>(num_az);
+    float cellH = height / static_cast<float>(num_el);
+    float spanDb = std::max(5.0f, res.max_2d_db - res.min_2d_db);
+
+    for (size_t e = 0; e < num_el; ++e) {
+        float y0 = cursor.y + static_cast<float>(num_el - 1 - e) * cellH;
+        float y1 = y0 + cellH;
+
+        for (size_t a = 0; a < num_az; ++a) {
+            float x0 = cursor.x + static_cast<float>(a) * cellW;
+            float x1 = x0 + cellW;
+
+            float db = res.pseudo_spectrum_2d_db[e * num_az + a];
+            float norm = std::clamp((db - res.min_2d_db) / spanDb, 0.0f, 1.0f);
+            draw_list->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), getPaletteColor(norm, 2));
+        }
+    }
+
+    draw_list->AddRect(cursor, ImVec2(cursor.x + width, cursor.y + height), IM_COL32(50, 75, 95, 255));
+
+    // Target crosshairs
+    for (size_t i = 0; i < res.estimated_targets_2d.size(); ++i) {
+        const auto& tgt = res.estimated_targets_2d[i];
+        float norm_az = std::clamp(tgt.azimuth_deg / 360.0f, 0.0f, 1.0f);
+        float norm_el = std::clamp(tgt.elevation_deg / 90.0f, 0.0f, 1.0f);
+
+        float cx = cursor.x + norm_az * width;
+        float cy = cursor.y + (1.0f - norm_el) * height;
+
+        draw_list->AddCircle(ImVec2(cx, cy), 6.0f, IM_COL32(255, 255, 255, 240), 16, 1.5f);
+        draw_list->AddLine(ImVec2(cx - 9.0f, cy), ImVec2(cx + 9.0f, cy), IM_COL32(255, 255, 255, 240), 1.2f);
+        draw_list->AddLine(ImVec2(cx, cy - 9.0f), ImVec2(cx, cy + 9.0f), IM_COL32(255, 255, 255, 240), 1.2f);
+
+        char tag[32];
+        std::snprintf(tag, sizeof(tag), "T%zu (%.0f*, %.0f*)", i + 1, tgt.azimuth_deg, tgt.elevation_deg);
+        draw_list->AddText(ImVec2(cx + 8.0f, cy - 8.0f), IM_COL32(255, 255, 255, 240), tag);
+    }
+
+    draw_list->AddText(ImVec2(cursor.x + 4.0f, cursor.y + 4.0f), IM_COL32(220, 220, 220, 220), "El: 90* (Zenith)");
+    draw_list->AddText(ImVec2(cursor.x + 4.0f, cursor.y + height - 16.0f), IM_COL32(220, 220, 220, 220), "El: 0* (Horizon)");
+    draw_list->AddText(ImVec2(cursor.x + width - 110.0f, cursor.y + height + 2.0f), IM_COL32(180, 200, 220, 220), "Az: 0* -> 360*");
+
+    ImGui::Dummy(ImVec2(width, height + 18.0f));
+
+    if (ImGui::IsItemHovered()) {
+        ImVec2 mouse = ImGui::GetMousePos();
+        float rel_x = std::clamp((mouse.x - cursor.x) / width, 0.0f, 1.0f);
+        float rel_y = std::clamp(1.0f - (mouse.y - cursor.y) / height, 0.0f, 1.0f);
+        ImGui::SetTooltip("Azimuth: %.1f deg\nElevation: %.1f deg", rel_x * 360.0f, rel_y * 90.0f);
+    }
 }
 
 } // namespace rf_tools
