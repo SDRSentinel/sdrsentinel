@@ -38,3 +38,20 @@ if (TARGET Eigen3::Eigen)
 elseif (EIGEN3_INCLUDE_DIR)
     target_include_directories(test_rf_tools_doa PRIVATE ${EIGEN3_INCLUDE_DIR})
 endif()
+
+# Standalone Beamformer test and SINR benchmark executable
+add_executable(test_rf_tools_beamforming
+    tests/test_beamforming.cpp
+    src/beamforming/beamformer.cpp
+    src/doa/covariance_accumulator.cpp
+    src/doa/array_synthesizer.cpp
+)
+target_include_directories(test_rf_tools_beamforming PRIVATE "src/")
+target_compile_features(test_rf_tools_beamforming PRIVATE cxx_std_17)
+set_target_properties(test_rf_tools_beamforming PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+if (TARGET Eigen3::Eigen)
+    target_link_libraries(test_rf_tools_beamforming PRIVATE Eigen3::Eigen)
+elseif (EIGEN3_INCLUDE_DIR)
+    target_include_directories(test_rf_tools_beamforming PRIVATE ${EIGEN3_INCLUDE_DIR})
+endif()
+
