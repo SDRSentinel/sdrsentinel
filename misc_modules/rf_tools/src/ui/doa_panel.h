@@ -38,6 +38,12 @@ public:
     void addPulseHit(float angleDeg, float powerDbfs);
     void draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumulator);
 
+    doa::DOAResult getLastResult() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return latest_result_;
+    }
+    const doa::DOAConfig& getConfig() const { return config_; }
+
 private:
     void drawPolarCompass(const std::vector<float>& angles, float radius);
     void drawRadarPPI(const std::vector<float>& angles, float radius);

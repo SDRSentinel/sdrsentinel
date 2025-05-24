@@ -22,6 +22,8 @@
 #include "ui/scope_panel.h"
 #include "pri/emitter_tracker.h"
 #include "ui/emitter_panel.h"
+#include "beamforming/beamformer.h"
+#include "ui/beamformer_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -221,6 +223,20 @@ private:
                 if (covAccumulator.getNormalizedCovariance(Rxx)) {
                     rf_tools::doa::DOAResult res = musicEngine.computeDOA(Rxx, K);
                     doaPanel.updateResult(res);
+                    beamformer.computeWeights(Rxx);
+                }
+
+                // If beamformer audio filtering is enabled, filter multi-channel buffer to demodulator output
+                if (beamformerPanel.isFilterAudioEnabled() && count > 0) {
+                    if (srcType == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
+                        auto synth_block = arraySynthesizer.generateSnapshots(count, static_cast<float>(sampleRate));
+                        std::vector<std::complex<float>> filtered(count);
+                        beamformer.filterInterleaved(synth_block.data(), count, filtered.data());
+                        for (int i = 0; i < count; ++i) {
+                            vfo->output->readBuf[i].re = filtered[i].real();
+                            vfo->output->readBuf[i].im = filtered[i].imag();
+                        }
+                    }
                 }
             }
 
@@ -297,6 +313,11 @@ private:
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Beamforming")) {
+                mod->beamformerPanel.draw(mod->beamformer, mod->covAccumulator, mod->doaPanel, mod->emitterTracker);
+                ImGui::EndTabItem();
+            }
+
             if (ImGui::BeginTabItem("Emitter Tracking")) {
                 mod->emitterPanel.draw(mod->emitterTracker);
                 ImGui::EndTabItem();
@@ -332,6 +353,10 @@ private:
     rf_tools::doa::CoherentBus coherentBus;
     rf_tools::DOAPanel doaPanel;
     std::atomic<bool> doaEnabled{ true };
+
+    // Adaptive Beamforming components
+    rf_tools::beamforming::AdaptiveBeamformer beamformer;
+    rf_tools::BeamformerPanel beamformerPanel;
 
     std::thread workerThread;
     std::atomic<bool> running{ false };
