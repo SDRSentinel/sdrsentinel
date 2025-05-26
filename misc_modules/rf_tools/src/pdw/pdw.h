@@ -18,5 +18,16 @@ namespace rf_tools {
         double pri = 0.0;                 // Pulse Repetition Interval (seconds, 0 if first pulse)
         float doaAzimuth = -1.0f;         // Angle of Arrival (degrees)
         bool hasDoa = false;              // True if DOA was successfully estimated for this pulse
+
+        // Hardware power calibration (gr-pdw standard: dBm)
+        float peakPowerDbm = -999.0f;
+        float averagePowerDbm = -999.0f;
+        float noiseFloorDbm = -999.0f;
+        bool isCalibratedDbm = false;
+        float refLevelDbm = 0.0f;
+
+        // gr-pdw timing compatibility
+        int64_t courseToa = 0;            // Whole seconds
+        uint64_t fineToa = 0;             // Clock cycles / sample index within second
     };
 }

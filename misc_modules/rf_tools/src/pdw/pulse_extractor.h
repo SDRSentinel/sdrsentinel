@@ -7,6 +7,8 @@
 #include <complex>
 
 namespace rf_tools {
+    class PowerCalibrationTable;
+
     class PulseExtractor {
     public:
         PulseExtractor();
@@ -15,6 +17,7 @@ namespace rf_tools {
         void init(double sampleRate, double centerFrequency = 0.0);
         void setSampleRate(double sampleRate);
         void setCenterFrequency(double centerFrequency);
+        void setCalibrationTable(const PowerCalibrationTable* calTable) { _calTable = calTable; }
         void reset();
 
         // Standard extraction
@@ -28,6 +31,7 @@ namespace rf_tools {
         double _centerFrequency = 0.0;
         uint64_t _pulseIndex = 0;
         double _lastToa = -1.0;
+        const PowerCalibrationTable* _calTable = nullptr;
 
         // FFT workspace for frequency estimation
         void prepareFftBuffer(size_t requiredSize);

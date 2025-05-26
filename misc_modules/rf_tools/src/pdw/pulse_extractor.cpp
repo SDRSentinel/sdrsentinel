@@ -1,4 +1,5 @@
 #include "pulse_extractor.h"
+#include "power_cal.h"
 #include <cmath>
 #include <algorithm>
 #include <cstring>
@@ -74,6 +75,8 @@ namespace rf_tools {
         pdw.pulseWidthSamples = static_cast<uint32_t>(rawPulse.samples.size());
         pdw.pulseWidth = pdw.pulseWidthSamples / _sampleRate;
         pdw.toa = rawPulse.startSample / _sampleRate;
+        pdw.courseToa = static_cast<int64_t>(std::floor(pdw.toa));
+        pdw.fineToa = static_cast<uint64_t>(std::round((pdw.toa - std::floor(pdw.toa)) * _sampleRate));
 
         // PRI calculation
         if (_lastToa >= 0.0) {
@@ -160,6 +163,10 @@ namespace rf_tools {
         double binFreqResolution = _sampleRate / static_cast<double>(_fftSize);
         pdw.frequencyOffset = (static_cast<double>(peakBin) - static_cast<double>(_fftSize) / 2.0 + delta) * binFreqResolution;
         pdw.absoluteFrequency = _centerFrequency + pdw.frequencyOffset;
+
+        if (_calTable) {
+            _calTable->calibrate(pdw);
+        }
 
         return pdw;
     }
