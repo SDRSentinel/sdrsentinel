@@ -7,6 +7,9 @@
 #include <string>
 
 namespace rf_tools {
+    class PowerCalibrationTable;
+    class PdwBinaryExporter;
+
     class PDWPanel {
     public:
         PDWPanel();
@@ -15,7 +18,7 @@ namespace rf_tools {
         void addPDW(const PDW& pdw);
         void clear();
 
-        void draw(PulseDetector& detector, double centerFreq, double vfoBw);
+        void draw(PulseDetector& detector, double centerFreq, double vfoBw, PowerCalibrationTable* calTable = nullptr, PdwBinaryExporter* binExporter = nullptr);
 
         size_t getTotalPulsesDetected() const { return _totalPulses; }
         std::vector<PDW> getRecentPdws() const;
@@ -32,8 +35,10 @@ namespace rf_tools {
         float _guiMaxPwUs = 500.0f;
         bool _autoScroll = true;
 
-        int _exportFormatIdx = 0; // 0: CSV, 1: JSON, 2: SigMF
-        char _exportPath[256] = "recordings/pdw_log.csv";
+        int _exportFormatIdx = 3; // 0: CSV, 1: JSON, 2: SigMF, 3: Binary/HDF5 (.pdwbin)
+        char _exportPath[256] = "recordings/pdw_stream.pdwbin";
+        char _customCalPath[256] = "misc_modules/rf_tools/src/pdw/b210_cal.json";
         char _statusMsg[128] = "";
+        bool _displayDbm = true;
     };
 }
