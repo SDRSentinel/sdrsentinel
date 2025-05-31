@@ -1,4 +1,5 @@
 #include "doa_panel.h"
+#include "../doa/array_calibration.h"
 #include <imgui.h>
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui_internal.h>
@@ -101,7 +102,7 @@ void DOAPanel::addPulseHit(float angleDeg, float powerDbfs) {
     }
 }
 
-void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumulator) {
+void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumulator, doa::ArrayCalibration* calibration) {
     doa::DOAResult result_copy;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -175,13 +176,65 @@ void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumu
         if (config_changed) {
             engine.setConfig(config_);
             accumulator.init(config_.num_elements, config_.num_snapshots, config_.forgetting_factor, config_.enable_fbss);
+            if (calibration) {
+                calibration->setNumChannels(config_.num_elements);
+            }
         }
     }
 
-    if (ImGui::CollapsingHeader("Calibration##doa_cal")) {
+    if (ImGui::CollapsingHeader("Hardware Calibration & TwinRX Phase Equalization##doa_cal")) {
+        if (calibration) {
+            bool cal_en = calibration->isEnabled();
+            if (ImGui::Checkbox("Enable Array Calibration##doa_cal_enable_cb", &cal_en)) {
+                calibration->setEnabled(cal_en);
+            }
+
+            ImGui::Text("Active Profile: %s", calibration->getProfileName().c_str());
+
+            // Phase and Gain offsets table
+            auto phases = calibration->getPhaseOffsetsDeg();
+            auto gains = calibration->getRelativeGainsDb();
+            if (ImGui::BeginTable("##doa_cal_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg, ImVec2(0, 100))) {
+                ImGui::TableSetupColumn("Ch", ImGuiTableColumnFlags_WidthFixed, 35.0f);
+                ImGui::TableSetupColumn("Phase Offset", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                ImGui::TableSetupColumn("Relative Gain", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                ImGui::TableHeadersRow();
+
+                for (size_t i = 0; i < phases.size(); ++i) {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%zu", i);
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::TextColored((i == 0) ? ImVec4(0.7f, 0.7f, 0.7f, 1.0f) : ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "%+.1f deg", phases[i]);
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::TextColored((i == 0) ? ImVec4(0.7f, 0.7f, 0.7f, 1.0f) : ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "%+.2f dB", gains[i]);
+                }
+                ImGui::EndTable();
+            }
+
+            static char cal_file_path[256] = "recordings/array_calib.json";
+            ImGui::InputText("Calibration File##doa_cal_file", cal_file_path, sizeof(cal_file_path));
+
+            if (ImGui::Button("Save Profile##doa_save_cal")) {
+                calibration->saveToFile(cal_file_path);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Load Profile##doa_load_cal")) {
+                calibration->loadFromFile(cal_file_path);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset to Identity##doa_reset_cal")) {
+                calibration->resetToIdentity();
+                accumulator.clearCalibration();
+                current_cal_factors_.clear();
+                cal_active_ = false;
+            }
+        }
+
+        ImGui::Separator();
         ImGui::SliderFloat("Pilot Angle (deg)##doa_pilot", &ui_pilot_angle_, 0.0f, 180.0f, "%.1f deg");
 
-        if (ImGui::Button("Calibrate from Current Covariance##doa_do_cal")) {
+        if (ImGui::Button("Subspace Pilot Calibration##doa_do_cal")) {
             Eigen::MatrixXcf current_R;
             if (accumulator.getNormalizedCovariance(current_R)) {
                 current_cal_factors_ = engine.calibrateFromPilot(current_R, ui_pilot_angle_);
@@ -189,17 +242,9 @@ void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumu
                 cal_active_ = true;
             }
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Reset Calibration##doa_reset_cal")) {
-            accumulator.clearCalibration();
-            current_cal_factors_.clear();
-            cal_active_ = false;
-        }
 
         if (cal_active_) {
-            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Calibration Active: %zu channels compensated", current_cal_factors_.size());
-        } else {
-            ImGui::TextDisabled("No calibration applied (ideal manifold assumed)");
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "Subspace Pilot: %zu channels compensated", current_cal_factors_.size());
         }
     }
 

@@ -29,6 +29,10 @@ enum class DOADisplayMode {
     WATERFALL
 };
 
+namespace doa {
+    class ArrayCalibration;
+}
+
 class DOAPanel {
 public:
     DOAPanel();
@@ -36,7 +40,7 @@ public:
 
     void updateResult(const doa::DOAResult& result);
     void addPulseHit(float angleDeg, float powerDbfs);
-    void draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumulator);
+    void draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumulator, doa::ArrayCalibration* calibration = nullptr);
 
     doa::DOAResult getLastResult() const {
         std::lock_guard<std::mutex> lock(mutex_);
