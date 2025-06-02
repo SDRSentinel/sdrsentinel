@@ -1,4 +1,5 @@
 #include "mop_analyzer.h"
+#include "chirp_matched_filter.h"
 #include <cmath>
 #include <algorithm>
 #include <numeric>
@@ -250,6 +251,24 @@ MOPResult MOPAnalyzer::analyze(const std::vector<dsp::complex_t>& samples, doubl
         result.type = MOPType::PHASE_BARKER;
     } else {
         result.type = MOPType::UNMODULATED_CW;
+    }
+
+    // GPU_SDR-adapted Chirp Matched Filter Pulse Compression
+    if (result.type == MOPType::LFM_CHIRP_UP || result.type == MOPType::LFM_CHIRP_DOWN) {
+        mop::ChirpMatchedFilter mf;
+        mf.init(sampleRate);
+        std::vector<std::complex<float>> cplx(N);
+        for (size_t i = 0; i < N; ++i) {
+            cplx[i] = { samples[i].re, samples[i].im };
+        }
+        auto compRes = mf.compressPulse(cplx, slopeHzPerSec);
+        if (compRes.detected) {
+            result.hasChirpCompression = true;
+            result.compressionRatio = compRes.compressionRatio;
+            result.compressedSnrGainDb = compRes.peakCompressedSnrGainDb;
+            result.pslrDb = compRes.pslrDb;
+            result.compressedEnvelope = std::move(compRes.compressedEnvelope);
+        }
     }
 
     // Mini STFT Spectrogram
