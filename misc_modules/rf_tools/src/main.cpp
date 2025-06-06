@@ -24,6 +24,11 @@
 #include "ui/emitter_panel.h"
 #include "beamforming/beamformer.h"
 #include "ui/beamformer_panel.h"
+#include "pdw/power_cal.h"
+#include "export/pdw_binary_exporter.h"
+#include "doa/array_calibration.h"
+#include "vna/vna_analyzer.h"
+#include "ui/vna_panel.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -42,10 +47,12 @@ public:
 
         detector.init(sampleRate, -40.0f, 0.5e-6, 1000.0e-6);
         extractor.init(sampleRate, 0.0);
+        extractor.setCalibrationTable(&powerCalTable);
         priAnalyzer.init(256);
 
         // Initialize DOA components with 4-element ULA and 256 snapshots
         covAccumulator.init(4, 256, 0.0f, false);
+        arrayCalibration.setNumChannels(4);
 
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
             double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
@@ -57,10 +64,16 @@ public:
                 size_t Npulse = rawPulse.samples.size();
                 if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
                     auto synth_pulse = arraySynthesizer.generateSnapshots(Npulse, static_cast<float>(sampleRate));
+                    if (arrayCalibration.isEnabled()) {
+                        arrayCalibration.applyCorrection(synth_pulse.data(), M, Npulse);
+                    }
                     pdw = extractor.extract(rawPulse, synth_pulse.data(), M, &musicEngine);
                 } else if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
                     std::vector<std::complex<float>> net_pulse;
                     if (coherentBus.getSnapshots(net_pulse, M, Npulse)) {
+                        if (arrayCalibration.isEnabled()) {
+                            arrayCalibration.applyCorrection(net_pulse.data(), M, Npulse);
+                        }
                         pdw = extractor.extract(rawPulse, net_pulse.data(), M, &musicEngine);
                     } else {
                         pdw = extractor.extract(rawPulse);
@@ -73,6 +86,9 @@ public:
             }
 
             pdwPanel.addPDW(pdw);
+            if (pdwBinExporter.isRecording()) {
+                pdwBinExporter.writePulse(pdw);
+            }
             priAnalyzer.addPulse(pdw);
             histogramPanel.addPDW(pdw);
             emitterTracker.processPDW(pdw);
@@ -204,10 +220,16 @@ private:
 
                 if (srcType == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
                     auto synth_snapshots = arraySynthesizer.generateSnapshots(K, static_cast<float>(sampleRate));
+                    if (arrayCalibration.isEnabled()) {
+                        arrayCalibration.applyCorrection(synth_snapshots.data(), M, K);
+                    }
                     covAccumulator.feedSnapshotsInterleaved(synth_snapshots.data(), M, K);
                 } else if (srcType == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
                     std::vector<std::complex<float>> net_snapshots;
                     if (coherentBus.getSnapshots(net_snapshots, M, K)) {
+                        if (arrayCalibration.isEnabled()) {
+                            arrayCalibration.applyCorrection(net_snapshots.data(), M, K);
+                        }
                         covAccumulator.feedSnapshotsInterleaved(net_snapshots.data(), M, K);
                     }
                 } else {
@@ -269,7 +291,7 @@ private:
 
         if (ImGui::BeginTabBar("##rf_tools_tabs")) {
             if (ImGui::BeginTabItem("Pulse / PDW")) {
-                mod->pdwPanel.draw(mod->detector, centerFreq, vfoBw);
+                mod->pdwPanel.draw(mod->detector, centerFreq, vfoBw, &mod->powerCalTable, &mod->pdwBinExporter);
                 ImGui::EndTabItem();
             }
 
@@ -309,7 +331,7 @@ private:
                     }
                 }
                 ImGui::Spacing();
-                mod->doaPanel.draw(mod->musicEngine, mod->covAccumulator);
+                mod->doaPanel.draw(mod->musicEngine, mod->covAccumulator, &mod->arrayCalibration);
                 ImGui::EndTabItem();
             }
 
@@ -325,6 +347,11 @@ private:
 
             if (ImGui::BeginTabItem("Signal Inspector (MOP)")) {
                 mod->scopePanel.draw();
+                ImGui::EndTabItem();
+            }
+
+            if (ImGui::BeginTabItem("VNA / Resonator (JPL)")) {
+                mod->vnaPanel.draw(mod->vnaAnalyzer);
                 ImGui::EndTabItem();
             }
 
@@ -345,18 +372,25 @@ private:
     rf_tools::EmitterTracker emitterTracker;
     rf_tools::EmitterPanel emitterPanel;
     rf_tools::ScopePanel scopePanel;
+    rf_tools::PowerCalibrationTable powerCalTable;
+    rf_tools::PdwBinaryExporter pdwBinExporter;
 
     // Direction Finding components
     rf_tools::doa::CovarianceAccumulator covAccumulator;
     rf_tools::doa::MUSICEngine musicEngine;
     rf_tools::doa::ArraySynthesizer arraySynthesizer;
     rf_tools::doa::CoherentBus coherentBus;
+    rf_tools::doa::ArrayCalibration arrayCalibration;
     rf_tools::DOAPanel doaPanel;
     std::atomic<bool> doaEnabled{ true };
 
     // Adaptive Beamforming components
     rf_tools::beamforming::AdaptiveBeamformer beamformer;
     rf_tools::BeamformerPanel beamformerPanel;
+
+    // GPU_SDR-adapted VNA and Resonator Readout
+    rf_tools::vna::VNAAnalyzer vnaAnalyzer;
+    rf_tools::VNAPanel vnaPanel;
 
     std::thread workerThread;
     std::atomic<bool> running{ false };

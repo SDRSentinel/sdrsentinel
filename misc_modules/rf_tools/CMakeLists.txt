@@ -55,3 +55,22 @@ elseif (EIGEN3_INCLUDE_DIR)
     target_include_directories(test_rf_tools_beamforming PRIVATE ${EIGEN3_INCLUDE_DIR})
 endif()
 
+# Standalone root_dev Comprehensive Integration test executable
+add_executable(test_root_dev_integration
+    tests/test_root_dev_integration.cpp
+    src/pdw/power_cal.cpp
+    src/export/pdw_binary_exporter.cpp
+    src/doa/array_calibration.cpp
+    src/mop/chirp_matched_filter.cpp
+    src/vna/vna_analyzer.cpp
+)
+target_include_directories(test_root_dev_integration PRIVATE "src/")
+target_compile_features(test_root_dev_integration PRIVATE cxx_std_17)
+set_target_properties(test_root_dev_integration PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_root_dev_integration PRIVATE sdrpp_core)
+if (TARGET Eigen3::Eigen)
+    target_link_libraries(test_root_dev_integration PRIVATE Eigen3::Eigen)
+elseif (EIGEN3_INCLUDE_DIR)
+    target_include_directories(test_root_dev_integration PRIVATE ${EIGEN3_INCLUDE_DIR})
+endif()
+
