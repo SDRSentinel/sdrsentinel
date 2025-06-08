@@ -18,8 +18,9 @@ struct ResonatorDipFit {
     double bandwidth3dbHz = 0.0;
     float dipDepthDb = 0.0f;
     float baselineDb = 0.0f;
-    float loadedQ = 0.0f;
-    float internalQ = 0.0f;
+    float loadedQ = 0.0f;     // Q_L: Total loaded quality factor = f0 / BW_3dB
+    float internalQ = 0.0f;   // Q_i: Resonator internal quality factor = Q_L / S21_min
+    float couplingQ = 0.0f;   // Q_c: Feedline coupling quality factor = Q_L / (1 - S21_min)
 };
 
 struct VNASweepConfig {

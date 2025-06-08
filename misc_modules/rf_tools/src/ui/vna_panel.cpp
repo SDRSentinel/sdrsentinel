@@ -66,8 +66,8 @@ void VNAPanel::draw(vna::VNAAnalyzer& analyzer) {
             "[RESONANCE] f0 = %.4f MHz | BW(-3dB) = %.1f kHz | Dip = %.1f dB",
             fit.resonantFreqHz / 1e6, fit.bandwidth3dbHz / 1e3, fit.dipDepthDb);
         ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f),
-            "Loaded Q (Q_L): %.0f | Internal Q (Q_i): %.0f",
-            fit.loadedQ, fit.internalQ);
+            "Loaded Q (Q_L): %.0f | Coupling Q (Q_c): %.0f | Internal Q (Q_i): %.0f",
+            fit.loadedQ, fit.couplingQ, fit.internalQ);
     } else {
         ImGui::TextDisabled("Awaiting resonance fit (minimum 2 dB transmission dip required)...");
     }

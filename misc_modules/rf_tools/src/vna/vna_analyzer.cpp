@@ -91,8 +91,19 @@ ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& trac
     fit.resonantFreqHz = trace[extremumIdx].freqHz;
     fit.dipDepthDb = depth;
 
-    // Find 3 dB points relative to extremum
-    float targetDb = findDip ? (extremumVal + 3.0f) : (extremumVal - 3.0f);
+    // In a Lorentzian transmission notch S21(f) = 1 - (Q_L/Q_c)/(1 + 2j Q_L df/f0),
+    // the loaded 3dB half-power bandwidth occurs where |S21|^2 drops halfway between baseline and minimum:
+    // P_half = (P_baseline + P_min) / 2.
+    // For a transmission peak (bandpass), the 3dB points are 3.01 dB below the peak.
+    float targetDb;
+    if (findDip) {
+        double pBase = std::pow(10.0, baseline / 10.0);
+        double pMin = std::pow(10.0, extremumVal / 10.0);
+        double pHalf = 0.5 * (pBase + pMin);
+        targetDb = static_cast<float>(10.0 * std::log10(pHalf));
+    } else {
+        targetDb = extremumVal - 3.0103f;
+    }
 
     // Left search
     double fLeft = trace.front().freqHz;
@@ -125,9 +136,19 @@ ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& trac
     if (bw3db > 1.0) {
         fit.bandwidth3dbHz = bw3db;
         fit.loadedQ = static_cast<float>(fit.resonantFreqHz / bw3db);
-        // Internal Q estimate: Q_i = Q_L / (1 - 10^(-depth/20))
-        float s21_min_lin = std::pow(10.0f, -depth / 20.0f);
-        fit.internalQ = fit.loadedQ / std::max(1e-4f, 1.0f - s21_min_lin);
+
+        if (findDip) {
+            // Standard canonical notch resonator relationship:
+            // 1/Q_L = 1/Q_i + 1/Q_c
+            // |S21(f0)| = Q_L / Q_i = S21_min_lin
+            // dipDepthDb = 20 * log10(Q_i / Q_L)
+            float s21_min_lin = std::pow(10.0f, -depth / 20.0f);
+            fit.internalQ = fit.loadedQ / std::max(1e-6f, s21_min_lin);
+            fit.couplingQ = fit.loadedQ / std::max(1e-6f, 1.0f - s21_min_lin);
+        } else {
+            fit.internalQ = fit.loadedQ;
+            fit.couplingQ = fit.loadedQ;
+        }
         fit.valid = true;
     }
 
