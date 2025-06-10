@@ -75,22 +75,26 @@ bool ArrayCalibration::estimateFromSnapshots(const std::complex<float>* interlea
         float amp_rel = static_cast<float>(std::sqrt(ch_pwr / ref_pwr));
         if (amp_rel < 1e-6f) amp_rel = 1.0f;
 
-        // Phase angle from cross correlation: x_0 * conj(x_k) gives phase difference (phi_0 - phi_k)
-        // Hence, phase offset of channel k relative to channel 0 is -arg(cross_corr)
-        double phase_diff = -std::arg(cross_corr[k]);
+        // Cross-correlation: R_0k = sum_n (x_0[n] * conj(x_k[n]))
+        // Argument of R_0k: arg(R_0k) = phi_0 - phi_k
+        // Hardware phase offset of channel k relative to reference channel 0:
+        // Delta_phi_k = phi_k - phi_0 = -arg(R_0k)
+        double phase_offset_rel = -std::arg(cross_corr[k]);
 
         measured_amplitude_[k] = amp_rel;
-        measured_phase_rad_[k] = static_cast<float>(phase_diff);
+        measured_phase_rad_[k] = static_cast<float>(phase_offset_rel);
 
-        // Correction multiplier to equalize to channel 0:
-        // x_k_cal = x_k * (1 / amp_rel) * exp(-j * phase_offset)
+        // Equalization weight to align channel k to channel 0:
+        // x_k_cal = x_k * g_k = x_k * (1 / amp_rel) * exp(-j * Delta_phi_k)
+        //                     = x_k * (1 / amp_rel) * exp(+j * arg(R_0k))
+        // -> phase(x_k_cal) = phi_k - Delta_phi_k = phi_k - (phi_k - phi_0) = phi_0
         float inv_amp = 1.0f / amp_rel;
-        complex_weights_[k] = std::polar(inv_amp, -static_cast<float>(phase_diff));
+        complex_weights_[k] = std::polar(inv_amp, -static_cast<float>(phase_offset_rel));
     }
 
     enabled_ = true;
     profile_name_ = "Live Measured Pilot Calibration";
-    flog::info("ArrayCalibration: Successfully estimated calibration from {0} snapshots", std::to_string(num_snapshots));
+    flog::debug("ArrayCalibration: Successfully estimated calibration from {0} snapshots", std::to_string(num_snapshots));
     return true;
 }
 

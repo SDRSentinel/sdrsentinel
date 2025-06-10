@@ -52,7 +52,10 @@ private:
     bool enabled_ = false;
     std::string profile_name_ = "Default Unity";
 
-    // Complex correction coefficients: g_k = (1/|A_k|) * exp(-j * phi_k)
+    // Channel relative phase offset: Delta_phi_k = phi_k - phi_0 = -arg(x_0 * conj(x_k))
+    // Complex correction weight to equalize channel k to channel 0:
+    // g_k = (1 / |A_k|) * exp(-j * Delta_phi_k) = (1 / |A_k|) * exp(+j * arg(x_0 * conj(x_k)))
+    // Such that x_k_cal = x_k * g_k has phase phi_0 and amplitude 1.0 relative to ref channel
     std::vector<std::complex<float>> complex_weights_;
     std::vector<float> measured_phase_rad_;
     std::vector<float> measured_amplitude_;

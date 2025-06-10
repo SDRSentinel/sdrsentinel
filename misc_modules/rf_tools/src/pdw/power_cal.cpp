@@ -116,6 +116,12 @@ float PowerCalibrationTable::getRefLevelDbm(double freqHz, float gainDb, const s
         return 0.0f;
     }
 
+    static bool warnedOutOfRange = false;
+    if (!isFrequencyInOfficialHardwareRange(freqHz) && !warnedOutOfRange) {
+        warnedOutOfRange = true;
+        flog::warn("PowerCalibrationTable: Frequency {0} MHz is outside official USRP B210 (AD9361) range [70 MHz - 6.0 GHz]; calibration values in 50-70 MHz are empirical GTRI uncertified.", freqHz / 1e6);
+    }
+
     auto chIt = _tables.find(channel);
     if (chIt == _tables.end()) chIt = _tables.begin();
 

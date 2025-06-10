@@ -42,6 +42,15 @@ public:
     // Apply calibration in-place to a PDW
     void calibrate(PDW& pdw) const;
 
+    // Official hardware frequency boundaries for USRP B210 (Analog Devices AD9361 RFIC: 70 MHz to 6.0 GHz).
+    // Frequencies below 70 MHz (e.g. 50-70 MHz) exist in empirical GTRI calibration data but are outside official AD9361 specifications.
+    static constexpr double B210_MIN_OFFICIAL_FREQ_HZ = 70.0e6;
+    static constexpr double B210_MAX_OFFICIAL_FREQ_HZ = 6.0e9;
+
+    bool isFrequencyInOfficialHardwareRange(double freqHz) const {
+        return freqHz >= B210_MIN_OFFICIAL_FREQ_HZ && freqHz <= B210_MAX_OFFICIAL_FREQ_HZ;
+    }
+
     // Status / info
     bool isLoaded() const { return !_tables.empty(); }
     std::string getCalibrationName() const { return _name; }
