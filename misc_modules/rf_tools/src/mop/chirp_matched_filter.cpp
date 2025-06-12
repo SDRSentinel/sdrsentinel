@@ -82,7 +82,7 @@ void ChirpMatchedFilter::dechirpMix(const std::complex<float>* input, size_t cou
     }
 }
 
-ChirpCompressionResult ChirpMatchedFilter::compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate) {
+ChirpCompressionResult ChirpMatchedFilter::compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate, WindowType window) {
     ChirpCompressionResult res;
     if (pulseSamples.size() < 16 || std::abs(estimatedChirpRate) < 1.0e6) {
         return res;
@@ -108,11 +108,18 @@ ChirpCompressionResult ChirpMatchedFilter::compressPulse(const std::vector<std::
         _fftIn[i][1] = pulseSamples[i].imag();
     }
 
-    // 3. Zero-pad and load time-reversed conjugated reference into _fftRef (matched filter impulse response h[n] = ref*[N-1-n])
+    // 3. Zero-pad and load time-reversed conjugated reference into _fftRef with optional windowing
+    // (matched filter impulse response h[n] = w[n] * ref*[N-1-n])
     std::memset(_fftRef, 0, _fftSize * sizeof(fftwf_complex));
     for (size_t i = 0; i < N; ++i) {
-        _fftRef[i][0] = ref[N - 1 - i].real();
-        _fftRef[i][1] = -ref[N - 1 - i].imag();
+        float w = 1.0f;
+        if (window == WindowType::HAMMING) {
+            w = 0.54f - 0.46f * static_cast<float>(std::cos(TWO_PI * i / static_cast<double>(N - 1)));
+        } else if (window == WindowType::HANN) {
+            w = 0.5f * (1.0f - static_cast<float>(std::cos(TWO_PI * i / static_cast<double>(N - 1))));
+        }
+        _fftRef[i][0] = ref[N - 1 - i].real() * w;
+        _fftRef[i][1] = -ref[N - 1 - i].imag() * w;
     }
 
     // 4. Forward FFTs
@@ -155,22 +162,32 @@ ChirpCompressionResult ChirpMatchedFilter::compressPulse(const std::vector<std::
     }
 
     // Find 3 dB width around peak
-    size_t leftIdx = peakIdx;
-    while (leftIdx > 0 && envelope[leftIdx] >= 0.707f) {
-        --leftIdx;
+    size_t left3db = peakIdx;
+    while (left3db > 0 && envelope[left3db] >= 0.707f) {
+        --left3db;
     }
-    size_t rightIdx = peakIdx;
-    while (rightIdx < validLen - 1 && envelope[rightIdx] >= 0.707f) {
-        ++rightIdx;
+    size_t right3db = peakIdx;
+    while (right3db < validLen - 1 && envelope[right3db] >= 0.707f) {
+        ++right3db;
     }
 
-    double compressedWidthSamples = std::max(1.0, static_cast<double>(rightIdx - leftIdx));
+    double compressedWidthSamples = std::max(1.0, static_cast<double>(right3db - left3db));
     double compressedWidthSec = compressedWidthSamples / _sampleRate;
 
-    // Estimate peak sidelobe level (outside mainlobe)
+    // In radar DSP, Peak Sidelobe Ratio (PSLR) is defined outside the first null (local minimum) of the mainlobe
+    size_t leftNull = peakIdx;
+    while (leftNull > 0 && envelope[leftNull - 1] <= envelope[leftNull]) {
+        --leftNull;
+    }
+    size_t rightNull = peakIdx;
+    while (rightNull < validLen - 1 && envelope[rightNull + 1] <= envelope[rightNull]) {
+        ++rightNull;
+    }
+
+    // Estimate peak sidelobe level outside mainlobe nulls
     float maxSidelobe = 0.0f;
     for (size_t i = 0; i < validLen; ++i) {
-        if (i < leftIdx || i > rightIdx) {
+        if (i < leftNull || i > rightNull) {
             if (envelope[i] > maxSidelobe) {
                 maxSidelobe = envelope[i];
             }

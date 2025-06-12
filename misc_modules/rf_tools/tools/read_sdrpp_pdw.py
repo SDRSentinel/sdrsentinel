@@ -68,9 +68,9 @@ def convert_to_hdf5(pdw_data, h5_filepath):
     try:
         import h5py
         import numpy as np
-    except ImportError:
-        print("h5py or numpy is not installed. Please install them to export to HDF5.")
-        return
+    except ImportError as e:
+        sys.stderr.write(f"Error: {e}. h5py and numpy are required to export to HDF5.\n")
+        sys.exit(1)
 
     meta = pdw_data["metadata"]
     recs = pdw_data["records"]

@@ -36,8 +36,14 @@ public:
     // Inspired directly by GPU_SDR chirp_demodulator
     void dechirpMix(const std::complex<float>* input, size_t count, double startFreqHz, double chirpRateHzPerSec, std::complex<float>* output) const;
 
+    enum class WindowType {
+        RECTANGULAR = 0,
+        HAMMING,
+        HANN
+    };
+
     // Matched filter pulse compression via FFT fast convolution
-    ChirpCompressionResult compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate);
+    ChirpCompressionResult compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate, WindowType window = WindowType::RECTANGULAR);
 
 private:
     void prepareFft(size_t n);
