@@ -35,6 +35,7 @@ void ScopePanel::loadPulse(const RawPulse& pulse, double sampleRate, double cent
     centerFreqHz_ = centerFreqHz;
     pulseCounter_++;
     hasPulse_ = true;
+    updateMatchedFilter();
 }
 
 void ScopePanel::draw() {
@@ -99,6 +100,11 @@ void ScopePanel::draw() {
 
         if (ImGui::BeginTabItem("Instantaneous Frequency / Chirp")) {
             drawInstFreqPlot();
+            ImGui::EndTabItem();
+        }
+
+        if (ImGui::BeginTabItem("Chirp Matched Filter (Pulse Compression)")) {
+            drawMatchedFilterPlot();
             ImGui::EndTabItem();
         }
 
@@ -311,6 +317,186 @@ void ScopePanel::drawSTFTSpectrogram() {
     std::snprintf(fBot, sizeof(fBot), "-%.1f MHz", (sampleRate_ * 0.5) / 1.0e6);
     draw_list->AddText(ImVec2(cursor.x + 4.0f, cursor.y + 4.0f), IM_COL32(240, 240, 240, 220), fTop);
     draw_list->AddText(ImVec2(cursor.x + 4.0f, cursor.y + height - 18.0f), IM_COL32(240, 240, 240, 220), fBot);
+
+    ImGui::Dummy(ImVec2(width, height + 8.0f));
+}
+
+void ScopePanel::updateMatchedFilter() {
+    if (currentPulse_.samples.size() < 16) {
+        compressionResult_ = mop::ChirpCompressionResult{};
+        return;
+    }
+
+    double slopeHzPerSec = 0.0;
+    if (mopResult_.type == MOPType::LFM_CHIRP_UP || mopResult_.type == MOPType::LFM_CHIRP_DOWN) {
+        slopeHzPerSec = static_cast<double>(mopResult_.chirpSlopeMhzPerUs) * 1.0e12; // MHz/us -> Hz/s
+    } else if (forceMatchedFilter_ && std::abs(manualChirpRateMhzPerUs_) > 0.001f) {
+        slopeHzPerSec = static_cast<double>(manualChirpRateMhzPerUs_) * 1.0e12;
+    } else {
+        compressionResult_ = mop::ChirpCompressionResult{};
+        return;
+    }
+
+    mop::ChirpMatchedFilter mf;
+    mf.init(sampleRate_);
+    std::vector<std::complex<float>> cplx(currentPulse_.samples.size());
+    for (size_t i = 0; i < currentPulse_.samples.size(); ++i) {
+        cplx[i] = { currentPulse_.samples[i].re, currentPulse_.samples[i].im };
+    }
+
+    mop::ChirpMatchedFilter::WindowType win = mop::ChirpMatchedFilter::WindowType::RECTANGULAR;
+    if (selectedWindow_ == 1) win = mop::ChirpMatchedFilter::WindowType::HAMMING;
+    else if (selectedWindow_ == 2) win = mop::ChirpMatchedFilter::WindowType::HANN;
+
+    compressionResult_ = mf.compressPulse(cplx, slopeHzPerSec, win);
+}
+
+void ScopePanel::drawMatchedFilterPlot() {
+    float width = ImGui::GetContentRegionAvail().x;
+    float height = 200.0f;
+
+    // Control header
+    ImGui::Text("Sidelobe Window:");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(170.0f);
+    const char* winItems[] = { "Rectangular (Uniform)", "Hamming (Radar Std)", "Hann (Cosine^2)" };
+    if (ImGui::Combo("##mf_win_select", &selectedWindow_, winItems, IM_ARRAYSIZE(winItems))) {
+        updateMatchedFilter();
+    }
+
+    ImGui::SameLine();
+    ImGui::Checkbox("dB Scale##mf_db", &dbScale_);
+    ImGui::SameLine();
+    ImGui::Checkbox("Zoom Peak (+-35 samps)##mf_zoom", &zoomPeak_);
+
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Manual / Force Slope##mf_force", &forceMatchedFilter_)) {
+        updateMatchedFilter();
+    }
+
+    if (forceMatchedFilter_) {
+        ImGui::SetNextItemWidth(150.0f);
+        if (ImGui::SliderFloat("Slope (MHz/us)##mf_slope_slider", &manualChirpRateMhzPerUs_, -10.0f, 10.0f, "%+.2f MHz/us")) {
+            updateMatchedFilter();
+        }
+    }
+
+    if (!compressionResult_.detected || compressionResult_.compressedEnvelope.empty()) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f),
+            "No LFM chirp detected in current pulse. Check 'Manual / Force Slope' above to test pulse compression.");
+        return;
+    }
+
+    // Results info badges
+    const char* winNames[] = { "Rectangular (No Sidelobe Taper)", "Hamming (-40dB Sidelobe Suppression)", "Hann" };
+    const char* winName = (selectedWindow_ >= 0 && selectedWindow_ < 3) ? winNames[selectedWindow_] : "Custom";
+    ImGui::TextColored(ImVec4(0.2f, 0.9f, 1.0f, 1.0f),
+        "[COMPRESSION] Ratio: %.1fx (%.2f us -> %.2f us) | SNR Gain: +%.1f dB | BW: %.2f MHz",
+        compressionResult_.compressionRatio,
+        compressionResult_.uncompressedPulseWidthSec * 1.0e6,
+        compressionResult_.compressedPulseWidthSec * 1.0e6,
+        compressionResult_.peakCompressedSnrGainDb,
+        compressionResult_.chirpBandwidthHz / 1.0e6);
+
+    ImVec4 pslrCol = (compressionResult_.pslrDb <= -25.0f) ? ImVec4(0.3f, 1.0f, 0.4f, 1.0f) : ImVec4(1.0f, 0.8f, 0.2f, 1.0f);
+    ImGui::TextColored(pslrCol,
+        "[SIDELOBES] Peak-to-Sidelobe Ratio (PSLR): %.1f dB | Active Window: %s",
+        compressionResult_.pslrDb, winName);
+
+    // Canvas drawing
+    ImVec2 cursor = ImGui::GetCursorScreenPos();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    draw_list->AddRectFilled(cursor, ImVec2(cursor.x + width, cursor.y + height), IM_COL32(10, 14, 20, 255));
+    draw_list->AddRect(cursor, ImVec2(cursor.x + width, cursor.y + height), IM_COL32(40, 55, 75, 255));
+
+    const auto& env = compressionResult_.compressedEnvelope;
+    size_t envSize = env.size();
+    if (envSize < 2) return;
+
+    // Find peak index
+    size_t peakIdx = 0;
+    float peakVal = env[0];
+    for (size_t i = 1; i < envSize; ++i) {
+        if (env[i] > peakVal) {
+            peakVal = env[i];
+            peakIdx = i;
+        }
+    }
+
+    size_t startIdx = 0;
+    size_t endIdx = envSize - 1;
+    if (zoomPeak_) {
+        startIdx = (peakIdx > 35) ? (peakIdx - 35) : 0;
+        endIdx = std::min(envSize - 1, peakIdx + 35);
+    }
+    size_t plotSpan = std::max((size_t)1, endIdx - startIdx);
+
+    auto mapCoord = [&](size_t idx, float normVal, float dbVal) -> ImVec2 {
+        float x = cursor.x + (static_cast<float>(idx - startIdx) / static_cast<float>(plotSpan)) * width;
+        float y;
+        if (dbScale_) {
+            // Map 0 dB to top, -50 dB to bottom
+            float clampedDb = std::clamp(dbVal, -50.0f, 0.0f);
+            y = cursor.y + (-clampedDb / 50.0f) * height;
+        } else {
+            // Map 1.0 to top, 0.0 to bottom
+            float clampedNorm = std::clamp(normVal, 0.0f, 1.05f);
+            y = cursor.y + (1.0f - clampedNorm / 1.05f) * height;
+        }
+        return ImVec2(x, y);
+    };
+
+    // Grid lines
+    if (dbScale_) {
+        static const float gridDbs[] = { 0.0f, -3.0f, -13.2f, -20.0f, -30.0f, -40.0f };
+        for (float db : gridDbs) {
+            float y = cursor.y + (-db / 50.0f) * height;
+            ImU32 lineCol = (db == -3.0f) ? IM_COL32(240, 180, 50, 180) :
+                            (db == -13.2f) ? IM_COL32(220, 80, 80, 120) :
+                                             IM_COL32(40, 55, 75, 120);
+            draw_list->AddLine(ImVec2(cursor.x, y), ImVec2(cursor.x + width, y), lineCol, 1.0f);
+            char dbBuf[16];
+            std::snprintf(dbBuf, sizeof(dbBuf), "%.1f dB", db);
+            draw_list->AddText(ImVec2(cursor.x + 4.0f, y - 13.0f), IM_COL32(140, 160, 180, 200), dbBuf);
+        }
+    } else {
+        static const float gridNorms[] = { 1.0f, 0.707f, 0.5f, 0.25f, 0.0f };
+        for (float n : gridNorms) {
+            float y = cursor.y + (1.0f - n / 1.05f) * height;
+            ImU32 lineCol = (n == 0.707f) ? IM_COL32(240, 180, 50, 180) : IM_COL32(40, 55, 75, 120);
+            draw_list->AddLine(ImVec2(cursor.x, y), ImVec2(cursor.x + width, y), lineCol, 1.0f);
+            char nBuf[16];
+            std::snprintf(nBuf, sizeof(nBuf), (n == 0.707f) ? "-3dB (0.707)" : "%.2f", n);
+            draw_list->AddText(ImVec2(cursor.x + 4.0f, y - 13.0f), IM_COL32(140, 160, 180, 200), nBuf);
+        }
+    }
+
+    // Draw compressed pulse envelope curve
+    ImVec2 pPrev;
+    for (size_t i = startIdx; i <= endIdx; ++i) {
+        float valNorm = env[i];
+        float valDb = 20.0f * std::log10(std::max(valNorm, 1e-4f));
+        ImVec2 pCurr = mapCoord(i, valNorm, valDb);
+
+        if (i > startIdx) {
+            // Fill translucent area under curve
+            ImVec2 pBase0(pPrev.x, cursor.y + height);
+            ImVec2 pBase1(pCurr.x, cursor.y + height);
+            draw_list->AddQuadFilled(pPrev, pCurr, pBase1, pBase0, IM_COL32(0, 180, 220, 30));
+            // Curve stroke
+            draw_list->AddLine(pPrev, pCurr, IM_COL32(0, 220, 255, 255), 2.0f);
+        }
+        pPrev = pCurr;
+    }
+
+    // Highlight peak marker
+    if (peakIdx >= startIdx && peakIdx <= endIdx) {
+        ImVec2 peakPt = mapCoord(peakIdx, env[peakIdx], 0.0f);
+        draw_list->AddCircleFilled(peakPt, 4.0f, IM_COL32(255, 255, 255, 255));
+        draw_list->AddLine(ImVec2(peakPt.x, cursor.y), ImVec2(peakPt.x, cursor.y + height), IM_COL32(0, 220, 255, 100), 1.0f);
+    }
 
     ImGui::Dummy(ImVec2(width, height + 8.0f));
 }

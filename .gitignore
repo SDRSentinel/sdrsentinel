@@ -24,3 +24,6 @@ root/res/layouts/default.json
 docs/
 .licenses/
 .omc/
+test_output/
+__pycache__/
+

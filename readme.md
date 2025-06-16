@@ -334,6 +334,16 @@ Other module changes:
   - I added a feature to colorize the frequency list based on the frequency.
   - I added right click menu to the frequency list to add a new frequency.
 
+* In rf_tools (`misc_modules/rf_tools`):
+  - Advanced Electronic Warfare & Radar suite porting and modernizing `gr-pdw`, `gr-doa`, and `GPU_SDR`.
+  - Real-time pulse detection (CFAR / threshold) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
+  - High-speed binary `.pdwbin` streaming and Python GTRI HDF5 converter.
+  - Multi-channel Direction Finding (Root-MUSIC and 2D URA MUSIC) with phase equalization wizard.
+  - Adaptive spatial beamforming (Bartlett, MVDR/Capon jammer suppression, LCMV multi-null steering).
+  - Intra-pulse Modulation on Pulse (MOP) analysis (LFM chirp slopes, Barker codes, STFT spectrogram).
+  - Live Chirp Matched Filter & pulse compression visualizer in ScopePanel (compressed envelope, -3 dB width, Hamming/Hann sidelobe suppression, PSLR readout).
+  - JPL/Caltech VNA resonator readout (S21 Lorentzian notch fitting, loaded Q_L, internal Q_i, coupling Q_c).
+
 
 # Module List
 
@@ -403,6 +413,7 @@ Modules in beta are still included in releases for the most part but not enabled
 | frequency_manager   | Working    | -            | OPT_BUILD_FREQUENCY_MANAGER | ✅              | ✅               | ✅                         |
 | iq_exporter         | Working    | -            | OPT_BUILD_IQ_EXPORTER       | ✅              | ✅               | ⛔                         |
 | recorder            | Working    | -            | OPT_BUILD_RECORDER          | ✅              | ✅               | ✅                         |
+| rf_tools            | Working    | fftw3f, eigen3 | OPT_BUILD_RF_TOOLS        | ✅              | ✅               | ⛔                         |
 | rigctl_client       | Unfinished | -            | OPT_BUILD_RIGCTL_CLIENT     | ✅              | ✅               | ⛔                         |
 | rigctl_server       | Working    | -            | OPT_BUILD_RIGCTL_SERVER     | ✅              | ✅               | ✅                         |
 | scanner             | Beta       | -            | OPT_BUILD_SCANNER           | ✅              | ✅               | ⛔                         |

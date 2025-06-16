@@ -1,6 +1,7 @@
 #pragma once
 #include "../mop/mop_analyzer.h"
 #include "../pdw/pulse_detector.h"
+#include "../mop/chirp_matched_filter.h"
 #include <mutex>
 #include <vector>
 
@@ -20,12 +21,15 @@ public:
 private:
     void drawWaveformPlot();
     void drawInstFreqPlot();
+    void drawMatchedFilterPlot();
     void drawConstellationPlot();
     void drawSTFTSpectrogram();
+    void updateMatchedFilter();
 
     mutable std::mutex mutex_;
     RawPulse currentPulse_;
     MOPResult mopResult_;
+    mop::ChirpCompressionResult compressionResult_;
     double sampleRate_ = 2000000.0;
     double centerFreqHz_ = 0.0;
     uint64_t pulseCounter_ = 0;
@@ -34,11 +38,18 @@ private:
     bool frozen_ = false;
 
     // View controls
-    int currentTabIdx_ = 0; // 0: Envelope & IQ, 1: Instantaneous Freq, 2: Constellation, 3: Spectrogram
+    int currentTabIdx_ = 0;
     bool showI_ = true;
     bool showQ_ = true;
     bool showEnvelope_ = true;
     float constellationRadius_ = 100.0f;
+
+    // Matched filter controls
+    int selectedWindow_ = 1; // 0: Rectangular, 1: Hamming, 2: Hann
+    bool forceMatchedFilter_ = false;
+    float manualChirpRateMhzPerUs_ = 1.0f;
+    bool dbScale_ = true;
+    bool zoomPeak_ = false;
 };
 
 } // namespace rf_tools
