@@ -29,13 +29,18 @@ void ScopePanel::loadPulse(const RawPulse& pulse, double sampleRate, double cent
     MOPResult res = MOPAnalyzer::analyze(pulse.samples, sampleRate, centerFreqHz);
 
     std::lock_guard<std::mutex> lock(mutex_);
+    if (res.envelope.empty()) {
+        shortPulseCounter_++;
+        lastShortPulseSamples_ = pulse.samples.size();
+        return;
+    }
     currentPulse_ = pulse;
     mopResult_ = std::move(res);
     sampleRate_ = sampleRate;
     centerFreqHz_ = centerFreqHz;
     pulseCounter_++;
     hasPulse_ = true;
-    updateMatchedFilter();
+    compressionDirty_ = true;
 }
 
 void ScopePanel::draw() {
@@ -49,10 +54,19 @@ void ScopePanel::draw() {
     }
     ImGui::SameLine();
     ImGui::TextDisabled("| Captured Pulses: %llu", (unsigned long long)pulseCounter_);
+    if (shortPulseCounter_ > 0) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("| Too short: %llu (last %zu samples, need >= 8)",
+            (unsigned long long)shortPulseCounter_, lastShortPulseSamples_);
+    }
 
-    if (!hasPulse_ || mopResult_.envelope.empty()) {
+    if (!hasPulse_) {
         ImGui::Spacing();
-        ImGui::TextDisabled("Awaiting pulse capture for intra-pulse modulation analysis...");
+        if (shortPulseCounter_ > 0) {
+            ImGui::TextDisabled("Only pulses too short to analyze were seen. Raise the Min PW to reject them...");
+        } else {
+            ImGui::TextDisabled("Awaiting pulse capture for intra-pulse modulation analysis...");
+        }
         return;
     }
 
@@ -322,6 +336,7 @@ void ScopePanel::drawSTFTSpectrogram() {
 }
 
 void ScopePanel::updateMatchedFilter() {
+    compressionDirty_ = false;
     if (currentPulse_.samples.size() < 16) {
         compressionResult_ = mop::ChirpCompressionResult{};
         return;
@@ -337,8 +352,10 @@ void ScopePanel::updateMatchedFilter() {
         return;
     }
 
-    mop::ChirpMatchedFilter mf;
-    mf.init(sampleRate_);
+    if (sampleRate_ != matchedFilterRate_) {
+        matchedFilter_.init(sampleRate_);
+        matchedFilterRate_ = sampleRate_;
+    }
     std::vector<std::complex<float>> cplx(currentPulse_.samples.size());
     for (size_t i = 0; i < currentPulse_.samples.size(); ++i) {
         cplx[i] = { currentPulse_.samples[i].re, currentPulse_.samples[i].im };
@@ -348,7 +365,7 @@ void ScopePanel::updateMatchedFilter() {
     if (selectedWindow_ == 1) win = mop::ChirpMatchedFilter::WindowType::HAMMING;
     else if (selectedWindow_ == 2) win = mop::ChirpMatchedFilter::WindowType::HANN;
 
-    compressionResult_ = mf.compressPulse(cplx, slopeHzPerSec, win);
+    compressionResult_ = matchedFilter_.compressPulse(cplx, slopeHzPerSec, win);
 }
 
 void ScopePanel::drawMatchedFilterPlot() {
@@ -361,7 +378,7 @@ void ScopePanel::drawMatchedFilterPlot() {
     ImGui::SetNextItemWidth(170.0f);
     const char* winItems[] = { "Rectangular (Uniform)", "Hamming (Radar Std)", "Hann (Cosine^2)" };
     if (ImGui::Combo("##mf_win_select", &selectedWindow_, winItems, IM_ARRAYSIZE(winItems))) {
-        updateMatchedFilter();
+        compressionDirty_ = true;
     }
 
     ImGui::SameLine();
@@ -371,14 +388,24 @@ void ScopePanel::drawMatchedFilterPlot() {
 
     ImGui::SameLine();
     if (ImGui::Checkbox("Manual / Force Slope##mf_force", &forceMatchedFilter_)) {
-        updateMatchedFilter();
+        compressionDirty_ = true;
     }
 
     if (forceMatchedFilter_) {
         ImGui::SetNextItemWidth(150.0f);
         if (ImGui::SliderFloat("Slope (MHz/us)##mf_slope_slider", &manualChirpRateMhzPerUs_, -10.0f, 10.0f, "%+.2f MHz/us")) {
-            updateMatchedFilter();
+            compressionDirty_ = true;
         }
+    }
+
+    if (compressionDirty_) updateMatchedFilter();
+
+    if (currentPulse_.samples.size() < 16) {
+        ImGui::Spacing();
+        ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f),
+            "Pulse too short for matched filter (%zu samples, need >= 16). Raise the Min PW or sample rate.",
+            currentPulse_.samples.size());
+        return;
     }
 
     if (!compressionResult_.detected || compressionResult_.compressedEnvelope.empty()) {

@@ -33,6 +33,11 @@ private:
     double sampleRate_ = 2000000.0;
     double centerFreqHz_ = 0.0;
     uint64_t pulseCounter_ = 0;
+    uint64_t shortPulseCounter_ = 0;
+    size_t lastShortPulseSamples_ = 0;
+    mop::ChirpMatchedFilter matchedFilter_;
+    double matchedFilterRate_ = 0.0;
+    bool compressionDirty_ = false;
 
     bool hasPulse_ = false;
     bool frozen_ = false;
