@@ -259,6 +259,16 @@ namespace ImGui {
         ImVec2 drag = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
         ImVec2 dragOrigin(mousePos.x - drag.x, mousePos.y - drag.y);
 
+        // Ignore the mouse unless the waterfall window is hovered when an interaction starts (e.g. a floating menu window on top)
+        bool anyMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        if (!anyMouseDown) {
+            mouseBlocked = false;
+        }
+        else if (!mouseBlocked && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) && !ImGui::IsWindowHovered()) {
+            mouseBlocked = true;
+        }
+        bool mouseActive = !mouseBlocked && (anyMouseDown || ImGui::IsWindowHovered());
+
         bool mouseHovered, mouseHeld;
         bool mouseClicked = ImGui::ButtonBehavior(ImRect(fftAreaMin, wfMax), GetID("WaterfallID"), &mouseHovered, &mouseHeld,
                                                   ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick);
@@ -270,7 +280,15 @@ namespace ImGui {
         mouseInFFT = IS_IN_AREA(dragOrigin, fftAreaMin, fftAreaMax);
         mouseInWaterfall = IS_IN_AREA(dragOrigin, wfMin, wfMax);
 
-        int mouseWheel = ImGui::GetIO().MouseWheel;
+        if (!mouseActive) {
+            mouseClicked = false;
+            mouseInFFTResize = false;
+            mouseInFreq = false;
+            mouseInFFT = false;
+            mouseInWaterfall = false;
+        }
+
+        int mouseWheel = mouseActive ? ImGui::GetIO().MouseWheel : 0;
 
         bool mouseMoved = false;
         if (mousePos.x != lastMousePos.x || mousePos.y != lastMousePos.y) { mouseMoved = true; }

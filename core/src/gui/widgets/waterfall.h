@@ -161,6 +161,7 @@ namespace ImGui {
         bandplan::BandPlan_t* bandplan = NULL;
 
         bool mouseInFFTResize = false;
+        bool mouseBlocked = false;
         bool mouseInFreq = false;
         bool mouseInFFT = false;
         bool mouseInWaterfall = false;
