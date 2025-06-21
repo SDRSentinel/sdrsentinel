@@ -74,7 +74,7 @@ namespace rf_tools {
 
     void PulseDetector::updateSampleLimits() {
         if (_sampleRate <= 0.0) return;
-        _minSamples = std::max<uint32_t>(1, static_cast<uint32_t>(std::round(_minPw * _sampleRate)));
+        _minSamples = std::max<uint32_t>(MIN_PULSE_SAMPLES, static_cast<uint32_t>(std::round(_minPw * _sampleRate)));
         _maxSamples = std::max<uint32_t>(_minSamples + 1, static_cast<uint32_t>(std::round(_maxPw * _sampleRate)));
     }
 

@@ -31,7 +31,7 @@ namespace rf_tools {
         uint64_t _totalPulses = 0;
         float _guiThreshold = -40.0f;
         float _guiMargin = 12.0f;
-        float _guiMinPwUs = 0.5f;
+        float _guiMinPwUs = 2.0f;
         float _guiMaxPwUs = 500.0f;
         bool _autoScroll = true;
 

@@ -20,7 +20,7 @@ namespace rf_tools {
         PulseDetector();
         ~PulseDetector();
 
-        void init(double sampleRate, float thresholdDb = -40.0f, double minPw = 0.5e-6, double maxPw = 1000.0e-6);
+        void init(double sampleRate, float thresholdDb = -40.0f, double minPw = 2.0e-6, double maxPw = 1000.0e-6);
         void setSampleRate(double sampleRate);
         void setThreshold(float thresholdDb);
         void setAutoThreshold(bool enable);
@@ -59,7 +59,9 @@ namespace rf_tools {
         double _noisePower = 0.0;
         bool _noiseInit = false;
         static constexpr uint64_t WARMUP_SAMPLES = 4096;
-        double _minPw = 0.5e-6;
+        // Floor on pulse length in samples so single noise spikes are never reported, regardless of sample rate
+        static constexpr uint32_t MIN_PULSE_SAMPLES = 4;
+        double _minPw = 2.0e-6;
         double _maxPw = 1000.0e-6;
 
         uint32_t _minSamples = 1;

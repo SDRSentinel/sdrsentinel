@@ -45,7 +45,7 @@ public:
 
         createVFO();
 
-        detector.init(sampleRate, -40.0f, 0.5e-6, 1000.0e-6);
+        detector.init(sampleRate, -40.0f, 2.0e-6, 1000.0e-6);
         extractor.init(sampleRate, 0.0);
         extractor.setCalibrationTable(&powerCalTable);
         priAnalyzer.init(256);
