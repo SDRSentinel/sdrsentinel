@@ -61,6 +61,7 @@ private:
         std::map<float, float> gainToRefLevel; // Gain (dB) -> Ref Level (dBm)
     };
 
+    mutable bool _warnedOutOfRange = false; // re-armed whenever a new table is loaded
     bool _enabled = false;
     float _gainDb = 40.0f;
     std::string _port = "RX2";

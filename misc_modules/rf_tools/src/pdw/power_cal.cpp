@@ -46,6 +46,7 @@ bool PowerCalibrationTable::loadFromJson(const std::string& filePath) {
 
         _tables = std::move(newTables);
         _name = filePath;
+        _warnedOutOfRange = false;
         _enabled = true;
         flog::info("PowerCalibrationTable: successfully loaded from {}", filePath);
         return true;
@@ -83,6 +84,7 @@ void PowerCalibrationTable::loadDefaultB210() {
     std::lock_guard<std::mutex> lock(_mutex);
     _tables.clear();
     _name = "USRP B210 Default";
+    _warnedOutOfRange = false;
 
     // Standard B210 empirical calibration grid (50 MHz to 6 GHz)
     // Gain vs 0 dBFS reference level (in dBm)
@@ -116,9 +118,8 @@ float PowerCalibrationTable::getRefLevelDbm(double freqHz, float gainDb, const s
         return 0.0f;
     }
 
-    static bool warnedOutOfRange = false;
-    if (!isFrequencyInOfficialHardwareRange(freqHz) && !warnedOutOfRange) {
-        warnedOutOfRange = true;
+    if (!isFrequencyInOfficialHardwareRange(freqHz) && !_warnedOutOfRange) {
+        _warnedOutOfRange = true;
         flog::warn("PowerCalibrationTable: Frequency {0} MHz is outside official USRP B210 (AD9361) range [70 MHz - 6.0 GHz]; calibration values in 50-70 MHz are empirical GTRI uncertified.", freqHz / 1e6);
     }
 
