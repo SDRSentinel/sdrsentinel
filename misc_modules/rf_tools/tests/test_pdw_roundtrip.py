@@ -7,8 +7,14 @@ Validates binary serialization against GTRI gr-pdw schema.
 import sys
 import os
 import math
-import numpy as np
-import h5py
+import argparse
+
+try:
+    import numpy as np
+    import h5py
+except ImportError as e:
+    print(f"SKIP: missing Python dependency ({e.name}); install numpy and h5py to run this test.")
+    sys.exit(0)
 
 # Import reader from tools
 tools_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "tools"))
@@ -16,15 +22,22 @@ sys.path.insert(0, tools_dir)
 from read_sdrpp_pdw import read_pdw_file, convert_to_hdf5
 
 def main():
+    parser = argparse.ArgumentParser(description="PDW C++ -> Python round-trip test")
+    parser.add_argument("pdwbin", nargs="?", default="test_output/pdw_test.pdwbin",
+                        help="path to the .pdwbin written by test_root_dev_integration (default: %(default)s)")
+    args = parser.parse_args()
+
     print("============================================================")
     print("   rf_tools PDW Binary C++ -> Python Round-Trip Test        ")
     print("============================================================")
 
-    pdwbin_path = "test_output/pdw_test.pdwbin"
-    h5_path = "test_output/pdw_test.h5"
+    pdwbin_path = args.pdwbin
+    h5_path = os.path.splitext(pdwbin_path)[0] + ".h5"
 
     if not os.path.exists(pdwbin_path):
-        sys.stderr.write(f"ERROR: {pdwbin_path} does not exist. Run test_root_dev_integration first.\n")
+        sys.stderr.write(f"ERROR: {pdwbin_path} does not exist. Run test_root_dev_integration first "
+                         "(it writes test_output/pdw_test.pdwbin relative to its working directory) "
+                         "or pass the file path as an argument.\n")
         sys.exit(1)
 
     print(f"[TEST] Reading binary PDW stream from '{pdwbin_path}'...")
