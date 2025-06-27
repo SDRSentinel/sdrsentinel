@@ -9,17 +9,47 @@ namespace doa {
 
 ArrayCalibration::ArrayCalibration(size_t num_channels)
     : num_channels_(num_channels) {
-    resetToIdentity();
+    resetLocked();
 }
 
 void ArrayCalibration::setNumChannels(size_t num_channels) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (num_channels == num_channels_) return;
     num_channels_ = num_channels;
-    resetToIdentity();
+    resetLocked();
+}
+
+void ArrayCalibration::setEnabled(bool enabled) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    enabled_ = enabled;
+}
+
+bool ArrayCalibration::isEnabled() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return enabled_;
+}
+
+size_t ArrayCalibration::getNumChannels() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return num_channels_;
+}
+
+std::vector<std::complex<float>> ArrayCalibration::getComplexWeights() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return complex_weights_;
+}
+
+std::string ArrayCalibration::getProfileName() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return profile_name_;
 }
 
 void ArrayCalibration::resetToIdentity() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    resetLocked();
+}
+
+void ArrayCalibration::resetLocked() {
     complex_weights_.assign(num_channels_, std::complex<float>(1.0f, 0.0f));
     measured_phase_rad_.assign(num_channels_, 0.0f);
     measured_amplitude_.assign(num_channels_, 1.0f);
@@ -45,7 +75,7 @@ bool ArrayCalibration::estimateFromSnapshots(const std::complex<float>* interlea
     std::lock_guard<std::mutex> lock(mutex_);
     if (num_channels != num_channels_) {
         num_channels_ = num_channels;
-        resetToIdentity();
+        resetLocked();
     }
 
     // Accumulate cross-correlation with reference channel 0: sum_n (x_0[n] * conj(x_k[n]))
@@ -99,23 +129,36 @@ bool ArrayCalibration::estimateFromSnapshots(const std::complex<float>* interlea
 }
 
 void ArrayCalibration::applyCorrection(std::complex<float>* interleaved_snapshots, size_t num_channels, size_t num_snapshots) const {
-    if (!enabled_ || !interleaved_snapshots || num_channels != num_channels_) return;
+    if (!interleaved_snapshots) return;
+
+    // Copy the weights under the lock so the UI thread can reset/reload them while this runs
+    std::vector<std::complex<float>> weights;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!enabled_ || num_channels != num_channels_ || complex_weights_.size() != num_channels) return;
+        weights = complex_weights_;
+    }
 
     for (size_t n = 0; n < num_snapshots; ++n) {
         std::complex<float>* snap = &interleaved_snapshots[n * num_channels];
         for (size_t k = 0; k < num_channels; ++k) {
-            snap[k] *= complex_weights_[k];
+            snap[k] *= weights[k];
         }
     }
 }
 
 void ArrayCalibration::applyCorrectionCovariance(Eigen::MatrixXcf& Rxx) const {
-    if (!enabled_ || static_cast<size_t>(Rxx.rows()) != num_channels_) return;
+    std::vector<std::complex<float>> weights;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!enabled_ || static_cast<size_t>(Rxx.rows()) != num_channels_ || complex_weights_.size() != num_channels_) return;
+        weights = complex_weights_;
+    }
 
-    // R_cal = C * R * C^H, where C = diag(complex_weights_)
-    for (size_t r = 0; r < num_channels_; ++r) {
-        for (size_t c = 0; c < num_channels_; ++c) {
-            Rxx(r, c) *= (complex_weights_[r] * std::conj(complex_weights_[c]));
+    // R_cal = C * R * C^H, where C = diag(weights)
+    for (size_t r = 0; r < weights.size(); ++r) {
+        for (size_t c = 0; c < weights.size(); ++c) {
+            Rxx(r, c) *= (weights[r] * std::conj(weights[c]));
         }
     }
 }

@@ -1,3 +1,10 @@
+// Portions of this file (the steering vector construction, the Root-MUSIC polynomial
+// rooting in getRootsPolynomial and the pilot calibration in calibrateFromPilot) are
+// translated from gr-doa, https://github.com/EttusResearch/gr-doa (GPLv3).
+// Copyright 2016 Srikanth Pagadarai <srikanth.pagadarai@gmail.com>,
+// Travis F. Collins <travisfcollins@gmail.com>
+// The pilot calibration follows Soon et al. 1994.
+
 #include "music_engine.h"
 #include <cmath>
 #include <limits>

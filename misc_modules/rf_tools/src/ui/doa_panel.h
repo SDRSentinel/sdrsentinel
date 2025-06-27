@@ -90,6 +90,7 @@ private:
     float ui_pilot_angle_ = 90.0f;
 
     bool cal_active_ = false;
+    bool cal_no_cov_ = false; // Pilot calibration pressed before any covariance existed
     std::vector<std::complex<float>> current_cal_factors_;
 };
 

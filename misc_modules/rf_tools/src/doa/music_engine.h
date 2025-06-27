@@ -1,4 +1,9 @@
 #pragma once
+// See music_engine.cpp: portions of this engine are translated from gr-doa, https://github.com/EttusResearch/gr-doa (GPLv3).
+// Copyright 2016 Srikanth Pagadarai <srikanth.pagadarai@gmail.com>,
+// Travis F. Collins <travisfcollins@gmail.com>
+// The pilot calibration follows Soon et al. 1994.
+
 #include "types.h"
 #include <vector>
 #include <complex>

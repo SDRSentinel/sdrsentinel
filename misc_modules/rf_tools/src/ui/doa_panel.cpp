@@ -236,11 +236,19 @@ void DOAPanel::draw(doa::MUSICEngine& engine, doa::CovarianceAccumulator& accumu
 
         if (ImGui::Button("Subspace Pilot Calibration##doa_do_cal")) {
             Eigen::MatrixXcf current_R;
-            if (accumulator.getNormalizedCovariance(current_R)) {
+            // Non-consuming read so the worker thread still gets its matrix
+            if (accumulator.getLatestCovariance(current_R)) {
                 current_cal_factors_ = engine.calibrateFromPilot(current_R, ui_pilot_angle_);
                 accumulator.setCalibration(current_cal_factors_);
                 cal_active_ = true;
+                cal_no_cov_ = false;
+            } else {
+                cal_no_cov_ = true;
             }
+        }
+
+        if (cal_no_cov_) {
+            ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "No covariance matrix available yet. Wait for signal data and try again.");
         }
 
         if (cal_active_) {

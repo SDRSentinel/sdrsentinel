@@ -14,13 +14,14 @@ public:
     ~ArrayCalibration() = default;
 
     void setNumChannels(size_t num_channels);
-    size_t getNumChannels() const { return num_channels_; }
+    size_t getNumChannels() const;
 
-    void setEnabled(bool enabled) { enabled_ = enabled; }
-    bool isEnabled() const { return enabled_; }
+    void setEnabled(bool enabled);
+    bool isEnabled() const;
 
     // Automatic inter-channel phase & amplitude offset estimation from coherent snapshots
     // Inspired by Ettus gr-doa twinrx_phase_offset_est
+    // Offline/test helper: the live module does not call it (the panel uses MUSICEngine::calibrateFromPilot)
     bool estimateFromSnapshots(const std::complex<float>* interleaved_snapshots, size_t num_channels, size_t num_snapshots);
 
     // Apply phase and amplitude correction in-place to interleaved snapshots [K snapshots x M channels]
@@ -38,15 +39,17 @@ public:
     // Getters for display / debugging
     std::vector<float> getPhaseOffsetsDeg() const;
     std::vector<float> getRelativeGainsDb() const;
-    const std::vector<std::complex<float>>& getComplexWeights() const { return complex_weights_; }
+    std::vector<std::complex<float>> getComplexWeights() const; // Copy, taken under the lock
 
     // Save/load calibration profile to/from JSON
     bool saveToFile(const std::string& filePath) const;
     bool loadFromFile(const std::string& filePath);
 
-    std::string getProfileName() const { return profile_name_; }
+    std::string getProfileName() const;
 
 private:
+    void resetLocked(); // resetToIdentity body; caller holds mutex_ (or is the constructor)
+
     mutable std::mutex mutex_;
     size_t num_channels_ = 4;
     bool enabled_ = false;

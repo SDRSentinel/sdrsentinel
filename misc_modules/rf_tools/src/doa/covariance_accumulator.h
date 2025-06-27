@@ -30,6 +30,9 @@ public:
     // Retrieve normalized covariance matrix if ready. Returns true when a new matrix is produced.
     bool getNormalizedCovariance(Eigen::MatrixXcf& out_Rxx);
 
+    // Copy of the last matrix produced, without consuming it. Returns false if none has been produced yet.
+    bool getLatestCovariance(Eigen::MatrixXcf& out_Rxx) const;
+
     void reset();
 
     size_t getSnapshotCount() const { return snapshot_count_; }
@@ -47,6 +50,7 @@ private:
     size_t snapshot_count_{0};
     uint64_t total_snapshots_{0};
     bool matrix_ready_{false};
+    bool has_latest_{false}; // latest_ready_Rxx_ holds a real matrix (not the zero init)
 
     Eigen::MatrixXcf Rxx_;
     Eigen::MatrixXcf latest_ready_Rxx_;

@@ -24,6 +24,7 @@ void CovarianceAccumulator::init(size_t num_elements, size_t snapshot_size, floa
     snapshot_count_ = 0;
     total_snapshots_ = 0;
     matrix_ready_ = false;
+    has_latest_ = false;
 }
 
 void CovarianceAccumulator::setCalibration(const std::vector<std::complex<float>>& cal_factors) {
@@ -76,6 +77,7 @@ void CovarianceAccumulator::feedSnapshot(const std::complex<float>* snapshot_dat
                 applyFBSS(latest_ready_Rxx_);
             }
             matrix_ready_ = true;
+            has_latest_ = true;
         }
     } else {
         // Block Rank-1 update on upper triangle
@@ -94,6 +96,7 @@ void CovarianceAccumulator::feedSnapshot(const std::complex<float>* snapshot_dat
 
             latest_ready_Rxx_ = full_Rxx;
             matrix_ready_ = true;
+            has_latest_ = true;
 
             // Reset for next block
             Rxx_.setZero();
@@ -134,12 +137,22 @@ bool CovarianceAccumulator::getNormalizedCovariance(Eigen::MatrixXcf& out_Rxx) {
     return true;
 }
 
+bool CovarianceAccumulator::getLatestCovariance(Eigen::MatrixXcf& out_Rxx) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!has_latest_) {
+        return false;
+    }
+    out_Rxx = latest_ready_Rxx_;
+    return true;
+}
+
 void CovarianceAccumulator::reset() {
     std::lock_guard<std::mutex> lock(mutex_);
     Rxx_.setZero();
     latest_ready_Rxx_.setZero();
     snapshot_count_ = 0;
     matrix_ready_ = false;
+    has_latest_ = false;
 }
 
 void CovarianceAccumulator::applyFBSS(Eigen::MatrixXcf& mat) const {
