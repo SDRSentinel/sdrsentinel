@@ -18,7 +18,7 @@ public:
     // Save current calibration table to JSON file
     bool saveToJson(const std::string& filePath) const;
 
-    // Load built-in USRP B210 calibration curve
+    // Load built-in USRP B210 calibration table (GTRI gr-pdw); leaves calibration disabled if it cannot be parsed
     void loadDefaultB210();
 
     // Enable / disable calibration
@@ -32,6 +32,10 @@ public:
     // Set selected port (e.g., "RX2" or "TX/RX")
     void setPort(const std::string& port) { _port = port; }
     const std::string& getPort() const { return _port; }
+
+    // Set selected RX channel (0 or 1)
+    void setChannel(int channel) { _channel = channel; }
+    int getChannel() const { return _channel; }
 
     // Interpolate 0 dBFS reference level in dBm for given frequency and gain
     float getRefLevelDbm(double freqHz, float gainDb, const std::string& port = "RX2", int channel = 0) const;
@@ -61,10 +65,13 @@ private:
         std::map<float, float> gainToRefLevel; // Gain (dB) -> Ref Level (dBm)
     };
 
+    bool parseTables(const std::string& text, const std::string& name, bool enable);
+
     mutable bool _warnedOutOfRange = false; // re-armed whenever a new table is loaded
     bool _enabled = false;
     float _gainDb = 40.0f;
     std::string _port = "RX2";
+    int _channel = 0;
     std::string _name = "None";
 
     mutable std::mutex _mutex;

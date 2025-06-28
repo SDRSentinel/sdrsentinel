@@ -1,27 +1,36 @@
 #include "power_cal.h"
 #include <json.hpp>
 #include <fstream>
+#include <sstream>
 #include <algorithm>
 #include <cmath>
 #include <utils/flog.h>
 
 namespace rf_tools {
 
+// Generated at build time from b210_cal.json (see CMakeLists.txt)
+extern const char* const kB210CalChunks[];
+extern const unsigned kB210CalChunkCount;
+
 PowerCalibrationTable::PowerCalibrationTable() {
     loadDefaultB210();
 }
 
 bool PowerCalibrationTable::loadFromJson(const std::string& filePath) {
+    std::ifstream file(filePath);
+    if (!file.is_open()) {
+        flog::warn("PowerCalibrationTable: could not open file {}", filePath);
+        return false;
+    }
+    std::stringstream buf;
+    buf << file.rdbuf();
+    return parseTables(buf.str(), filePath, true);
+}
+
+bool PowerCalibrationTable::parseTables(const std::string& text, const std::string& name, bool enable) {
     std::lock_guard<std::mutex> lock(_mutex);
     try {
-        std::ifstream file(filePath);
-        if (!file.is_open()) {
-            flog::warn("PowerCalibrationTable: could not open file {}", filePath);
-            return false;
-        }
-
-        nlohmann::json root;
-        file >> root;
+        nlohmann::json root = nlohmann::json::parse(text);
 
         std::map<int, std::map<std::string, std::vector<CalPoint>>> newTables;
 
@@ -33,22 +42,32 @@ bool PowerCalibrationTable::loadFromJson(const std::string& filePath) {
                     CalPoint pt;
                     pt.freq = std::stod(freqStr);
                     for (auto& [gainStr, refVal] : gainObj.items()) {
-                        pt.gainToRefLevel[std::stof(gainStr)] = refVal.get<float>();
+                        // Missing measurements are stored as null; skip them so interpolation never sees NaN
+                        if (!refVal.is_number()) continue;
+                        float ref = refVal.get<float>();
+                        if (!std::isfinite(ref)) continue;
+                        pt.gainToRefLevel[std::stof(gainStr)] = ref;
                     }
+                    if (pt.gainToRefLevel.empty()) continue;
                     points.push_back(pt);
                 }
                 std::sort(points.begin(), points.end(), [](const CalPoint& a, const CalPoint& b) {
                     return a.freq < b.freq;
                 });
-                newTables[ch][port] = std::move(points);
+                if (!points.empty()) newTables[ch][port] = std::move(points);
             }
         }
 
+        if (newTables.empty()) {
+            flog::error("PowerCalibrationTable: {} contains no calibration points", name);
+            return false;
+        }
+
         _tables = std::move(newTables);
-        _name = filePath;
+        _name = name;
         _warnedOutOfRange = false;
-        _enabled = true;
-        flog::info("PowerCalibrationTable: successfully loaded from {}", filePath);
+        if (enable) _enabled = true;
+        flog::info("PowerCalibrationTable: successfully loaded from {}", name);
         return true;
     } catch (const std::exception& e) {
         flog::error("PowerCalibrationTable: error parsing JSON: {}", e.what());
@@ -81,34 +100,20 @@ bool PowerCalibrationTable::saveToJson(const std::string& filePath) const {
 }
 
 void PowerCalibrationTable::loadDefaultB210() {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _tables.clear();
-    _name = "USRP B210 Default";
-    _warnedOutOfRange = false;
-
-    // Standard B210 empirical calibration grid (50 MHz to 6 GHz)
-    // Gain vs 0 dBFS reference level (in dBm)
-    static const double freqs[] = {
-        50e6, 150e6, 250e6, 350e6, 450e6, 900e6, 1200e6, 1500e6, 2000e6, 2400e6, 3500e6, 5800e6
-    };
-    static const float gains[] = { 0.0f, 10.0f, 20.0f, 30.0f, 40.0f, 50.0f, 60.0f, 70.0f, 80.0f };
-
-    for (int ch = 0; ch < 2; ++ch) {
-        for (const std::string& port : { "RX2", "TX/RX" }) {
-            std::vector<CalPoint> points;
-            for (double f : freqs) {
-                CalPoint pt;
-                pt.freq = f;
-                // Empirical curve: Reference level at 0 gain ~ +6 dBm, slopes -0.85 dBm per dB gain
-                float freqFactor = static_cast<float>(std::log10(f / 1e6) * 1.5f);
-                for (float g : gains) {
-                    float refDbm = 6.0f - (g * 0.86f) + freqFactor;
-                    pt.gainToRefLevel[g] = refDbm;
-                }
-                points.push_back(pt);
-            }
-            _tables[ch][port] = std::move(points);
-        }
+    // Default table: USRP B210 reference levels measured by GTRI, taken from b210_pdw.pickle of gr-pdw
+    // (https://github.com/gtri/gr-pdw, GPLv3, Copyright 2024 GTRI) and converted to src/pdw/b210_cal.json
+    // (channel -> port -> frequency in Hz -> gain in dB -> 0 dBFS reference level in dBm; null = not measured).
+    // The JSON is embedded at build time (see CMakeLists.txt) so it does not depend on the working directory.
+    std::string text;
+    for (unsigned i = 0; i < kB210CalChunkCount; ++i) {
+        text += kB210CalChunks[i];
+    }
+    if (!parseTables(text, "USRP B210 (GTRI gr-pdw)", false)) {
+        flog::error("PowerCalibrationTable: could not load the embedded GTRI B210 table, power calibration disabled");
+        std::lock_guard<std::mutex> lock(_mutex);
+        _tables.clear();
+        _name = "None";
+        _enabled = false;
     }
 }
 
@@ -180,7 +185,7 @@ void PowerCalibrationTable::calibrate(PDW& pdw) const {
         return;
     }
 
-    float refLevel = getRefLevelDbm(pdw.absoluteFrequency, _gainDb, _port, 0);
+    float refLevel = getRefLevelDbm(pdw.absoluteFrequency, _gainDb, _port, _channel);
     pdw.refLevelDbm = refLevel;
     pdw.peakPowerDbm = pdw.peakPower + refLevel;
     pdw.averagePowerDbm = pdw.averagePower + refLevel;

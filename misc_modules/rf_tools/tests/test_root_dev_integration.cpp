@@ -41,11 +41,48 @@ int main() {
         TEST_CHECK(calTable.isFrequencyInOfficialHardwareRange(1000.0e6), "1 GHz must be within official B210 range");
         TEST_CHECK(!calTable.isFrequencyInOfficialHardwareRange(50.0e6), "50 MHz must be flagged outside official AD9361 spec [70 MHz - 6 GHz]");
 
+        TEST_CHECK(calTable.isLoaded(), "Embedded GTRI B210 table failed to load");
+
+        // Reference values computed from GTRI's b210_pdw.pickle (gr-pdw) with a restricted unpickler:
+        // bilinear interpolation (frequency, then gain) between the measured points, NaN points skipped.
+        struct RefPoint { int ch; const char* port; double freq; float gain; float dbm; };
+        const RefPoint refs[] = {
+            { 0, "RX2",   1.0e9,  40.0f, -27.0226f }, // 1 GHz / 40 dB quoted in the roadmap
+            { 0, "RX2",   1.0e9,  50.0f, -29.6226f },
+            { 0, "RX2",   1.0e9,  60.0f, -50.4472f }, // 20.8 dB drop between 50 and 60 dB gain: non-linear
+            { 0, "RX2",   1.0e9,  70.0f, -60.2406f },
+            { 0, "RX2",   1.0e9,   0.0f,   6.7410f },
+            { 0, "RX2", 100.0e6,  20.0f, -11.5516f },
+            { 0, "RX2",   2.4e9,  30.0f, -15.2458f },
+            { 0, "RX2",   5.8e9,  10.0f,  12.1571f },
+            { 0, "TX/RX", 1.0e9,  40.0f, -27.0296f },
+            { 1, "RX2",   1.0e9,  40.0f, -24.2511f }, // channel 1 differs from channel 0
+        };
+        for (const auto& r : refs) {
+            float v = calTable.getRefLevelDbm(r.freq, r.gain, r.port, r.ch);
+            std::cout << "  -> GTRI ref ch" << r.ch << " " << r.port << " " << r.freq / 1e6 << " MHz, " << r.gain
+                      << " dB: expected " << r.dbm << " dBm, got " << v << " dBm\n";
+            TEST_CHECK(std::abs(v - r.dbm) < 0.05f, "Reference level differs from GTRI table");
+        }
+
+        // The table has data for channel 1 that differs from channel 0, so the selected channel must change calibrate()
+        std::cout << "  -> Sweeping 50 MHz..6 GHz x 0..80 dB for NaN (both channels, both ports)...\n";
+        bool anyNan = false;
+        for (int ch = 0; ch < 2; ++ch) {
+            for (const char* port : { "RX2", "TX/RX" }) {
+                for (double f = 50.0e6; f <= 6.05e9; f += 25.0e6) {
+                    for (float g = 0.0f; g <= 80.0f; g += 2.5f) {
+                        if (std::isnan(calTable.getRefLevelDbm(f, g, port, ch))) anyNan = true;
+                    }
+                }
+            }
+        }
+        TEST_CHECK(!anyNan, "Reference level interpolation returned NaN");
+
+        // Reference level is plausible (for B210 at 40 dB gain, ref level is around -20 to -30 dBm)
         double testFreq = 1000.0e6; // 1 GHz
         float testGain = 40.0f;     // 40 dB gain
         float refLevel = calTable.getRefLevelDbm(testFreq, testGain, "RX2");
-
-        // Verify reference level is plausible (for B210 at 40 dB gain, ref level is around -20 to -30 dBm)
         TEST_CHECK(refLevel < 0.0f && refLevel > -50.0f, "Reference level out of expected range");
 
         rf_tools::PDW pdw;
@@ -60,6 +97,14 @@ int main() {
         TEST_CHECK(pdw.isCalibratedDbm, "PDW must be marked calibrated");
         float expectedPk = -10.0f + refLevel;
         TEST_CHECK(std::abs(pdw.peakPowerDbm - expectedPk) < 1e-4f, "Calibrated peak power mismatch");
+
+        calTable.setChannel(1);
+        rf_tools::PDW pdw1 = pdw;
+        calTable.calibrate(pdw1);
+        std::cout << "  -> channel setter: ch0 ref " << pdw.refLevelDbm << " dBm, ch1 ref " << pdw1.refLevelDbm << " dBm\n";
+        TEST_CHECK(std::abs(pdw1.refLevelDbm - (-24.2511f)) < 0.05f, "calibrate() must use the selected channel (ch1 GTRI reference)");
+        TEST_CHECK(std::abs(pdw1.refLevelDbm - pdw.refLevelDbm) > 1.0f, "Channel 1 must differ from channel 0");
+        calTable.setChannel(0);
 
         // Out-of-spec test (50 MHz legacy GTRI calibration curve)
         float refLevel50M = calTable.getRefLevelDbm(50.0e6, testGain, "RX2");

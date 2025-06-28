@@ -109,7 +109,13 @@ namespace rf_tools {
                     calTable->setPort(ports[currentPortIdx]);
                 }
 
-                float refLevel = calTable->getRefLevelDbm(centerFreq, gain, calTable->getPort(), 0);
+                const char* channels[] = { "0", "1" };
+                int currentChannel = calTable->getChannel() == 1 ? 1 : 0;
+                if (ImGui::Combo("Channel##pdw_cal_channel", &currentChannel, channels, IM_ARRAYSIZE(channels))) {
+                    calTable->setChannel(currentChannel);
+                }
+
+                float refLevel = calTable->getRefLevelDbm(centerFreq, gain, calTable->getPort(), calTable->getChannel());
                 ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "0 dBFS Reference: %+.1f dBm", refLevel);
                 ImGui::Text("Active Profile: %s", calTable->getCalibrationName().c_str());
 
@@ -120,7 +126,7 @@ namespace rf_tools {
                 if (ImGui::Button("Load JSON...##pdw_cal_load")) {
                     calTable->loadFromJson(_customCalPath);
                 }
-                ImGui::InputText("JSON Path##pdw_cal_path", _customCalPath, sizeof(_customCalPath));
+                ImGui::InputTextWithHint("JSON Path##pdw_cal_path", "path to a calibration table", _customCalPath, sizeof(_customCalPath));
             }
         }
 
@@ -154,7 +160,7 @@ namespace rf_tools {
                 } else {
                     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.2f, 0.7f, 0.3f, 1.0f));
                     if (ImGui::Button("Start Live Stream Recording##pdw_btn_start_rec")) {
-                        float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain()) : 0.0f;
+                        float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain(), calTable->getPort(), calTable->getChannel()) : 0.0f;
                         bool isCal = (calTable && calTable->isEnabled());
                         binExporter->startRecording(_exportPath, 2000000.0, centerFreq, ref, isCal);
                     }
@@ -173,7 +179,7 @@ namespace rf_tools {
                 } else if (_exportFormatIdx == 2) {
                     ok = SigMFExporter::exportSigMF(_exportPath, pdws, 2000000.0, centerFreq);
                 } else if (binExporter) {
-                    float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain()) : 0.0f;
+                    float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain(), calTable->getPort(), calTable->getChannel()) : 0.0f;
                     bool isCal = (calTable && calTable->isEnabled());
                     PdwBinaryExporter tempExp;
                     if (tempExp.startRecording(_exportPath, 2000000.0, centerFreq, ref, isCal)) {

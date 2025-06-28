@@ -37,7 +37,7 @@ namespace rf_tools {
 
         int _exportFormatIdx = 3; // 0: CSV, 1: JSON, 2: SigMF, 3: Binary/HDF5 (.pdwbin)
         char _exportPath[256] = "recordings/pdw_stream.pdwbin";
-        char _customCalPath[256] = "misc_modules/rf_tools/src/pdw/b210_cal.json";
+        char _customCalPath[256] = ""; // user-supplied table; the default GTRI table is embedded in the module
         char _statusMsg[128] = "";
         bool _displayDbm = true;
     };
