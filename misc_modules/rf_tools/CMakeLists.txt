@@ -97,3 +97,13 @@ elseif (EIGEN3_INCLUDE_DIR)
     target_include_directories(test_root_dev_integration PRIVATE ${EIGEN3_INCLUDE_DIR})
 endif()
 
+
+# Standalone pulse detector test executable
+add_executable(test_rf_tools_pulse_detector
+    tests/test_pulse_detector.cpp
+    src/pdw/pulse_detector.cpp
+)
+target_include_directories(test_rf_tools_pulse_detector PRIVATE "src/")
+target_compile_features(test_rf_tools_pulse_detector PRIVATE cxx_std_17)
+set_target_properties(test_rf_tools_pulse_detector PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_rf_tools_pulse_detector PRIVATE sdrpp_core)

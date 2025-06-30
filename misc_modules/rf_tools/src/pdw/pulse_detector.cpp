@@ -104,6 +104,23 @@ namespace rf_tools {
             float mag = std::sqrt(power);
 
             if (_state == SEARCHING) {
+                bool warm = !_auto || _totalSamples + i >= WARMUP_SAMPLES;
+
+                if (warm && mag >= _linearThreshold) {
+                    _state = IN_PULSE;
+                    _pulseStartSample = _totalSamples + i;
+                    _pulseBuffer.clear();
+                    _pulseBuffer.push_back(s);
+
+                    // Capture pre-pulse noise; the rising-edge sample is not in the ring yet
+                    _noiseBuffer.clear();
+                    _noiseBuffer.reserve(PRE_NOISE_WINDOW);
+                    for (size_t k = 0; k < PRE_NOISE_WINDOW; ++k) {
+                        _noiseBuffer.push_back(_recentNoise[(_noiseIdx + k) % PRE_NOISE_WINDOW]);
+                    }
+                    continue;
+                }
+
                 // Keep pre-pulse ring buffer for noise floor estimation
                 _recentNoise[_noiseIdx] = s;
                 _noiseIdx = (_noiseIdx + 1) % PRE_NOISE_WINDOW;
@@ -116,28 +133,12 @@ namespace rf_tools {
                 else {
                     _noisePower += 1.0e-3 * (power - _noisePower);
                 }
-
-                // Let the noise floor settle before detecting
-                if (_auto && _totalSamples + i < WARMUP_SAMPLES) continue;
-
-                if (mag >= _linearThreshold) {
-                    _state = IN_PULSE;
-                    _pulseStartSample = _totalSamples + i;
-                    _pulseBuffer.clear();
-                    _pulseBuffer.push_back(s);
-
-                    // Capture pre-pulse noise
-                    _noiseBuffer.clear();
-                    _noiseBuffer.reserve(PRE_NOISE_WINDOW);
-                    for (size_t k = 0; k < PRE_NOISE_WINDOW; ++k) {
-                        _noiseBuffer.push_back(_recentNoise[(_noiseIdx + k) % PRE_NOISE_WINDOW]);
-                    }
-                }
             }
             else { // IN_PULSE
-                _pulseBuffer.push_back(s);
-
+                // The pulse ends at the last sample above the release threshold, so the
+                // terminating sample is not part of it
                 bool pulseEnded = (mag < _endThreshold);
+                if (!pulseEnded) _pulseBuffer.push_back(s);
                 bool pulseOverflow = (_pulseBuffer.size() > _maxSamples);
 
                 if (pulseEnded || pulseOverflow) {
@@ -147,7 +148,7 @@ namespace rf_tools {
                         if (_callback) {
                             RawPulse pulse;
                             pulse.startSample = _pulseStartSample;
-                            pulse.endSample = _totalSamples + i;
+                            pulse.endSample = _pulseStartSample + pulseLen - 1;
                             pulse.samples = std::move(_pulseBuffer);
                             pulse.noiseSamples = std::move(_noiseBuffer);
                             _callback(pulse);
