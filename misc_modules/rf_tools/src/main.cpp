@@ -173,6 +173,11 @@ private:
         }
 
         if (bw != sampleRate) {
+            // The detector restarts its time base on a rate change, so a running recording would mix two time bases
+            if (pdwBinExporter.isRecording()) {
+                flog::warn("rf_tools: sample rate changed, stopping PDW recording");
+                pdwBinExporter.stopRecording();
+            }
             sampleRate = bw;
             detector.setSampleRate(bw);
             extractor.setSampleRate(bw);
@@ -341,7 +346,7 @@ private:
             }
 
             if (ImGui::BeginTabItem("Emitter Tracking")) {
-                mod->emitterPanel.draw(mod->emitterTracker);
+                mod->emitterPanel.draw(mod->emitterTracker, mod->detector.getSampleRate());
                 ImGui::EndTabItem();
             }
 

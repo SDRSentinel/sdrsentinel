@@ -9,7 +9,7 @@ public:
     EmitterPanel();
     ~EmitterPanel() = default;
 
-    void draw(EmitterTracker& tracker);
+    void draw(EmitterTracker& tracker, double sampleRate);
 
 private:
     float ui_freq_tol_khz_ = 50.0f;

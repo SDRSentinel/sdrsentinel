@@ -1,5 +1,6 @@
 #include "pulse_detector.h"
 #include <algorithm>
+#include <chrono>
 
 namespace rf_tools {
     PulseDetector::PulseDetector() {
@@ -22,8 +23,11 @@ namespace rf_tools {
     }
 
     void PulseDetector::setSampleRate(double sampleRate) {
+        bool changed = sampleRate != _sampleRate;
         _sampleRate = sampleRate;
         updateSampleLimits();
+        // Sample indices are only meaningful at one rate, so a new rate restarts the stream clock
+        if (changed) reset();
     }
 
     void PulseDetector::setThreshold(float thresholdDb) {
@@ -81,6 +85,7 @@ namespace rf_tools {
     void PulseDetector::reset() {
         _state = SEARCHING;
         _totalSamples = 0;
+        _startTimeUnix = std::chrono::duration<double>(std::chrono::system_clock::now().time_since_epoch()).count();
         _pulseStartSample = 0;
         _totalPulses = 0;
         _pulseBuffer.clear();

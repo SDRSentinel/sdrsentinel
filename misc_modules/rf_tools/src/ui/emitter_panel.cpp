@@ -8,7 +8,7 @@ namespace rf_tools {
 
 EmitterPanel::EmitterPanel() {}
 
-void EmitterPanel::draw(EmitterTracker& tracker) {
+void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
     if (ImGui::CollapsingHeader("Deinterleaving Parameters##emit_cfg", ImGuiTreeNodeFlags_DefaultOpen)) {
         bool changed = false;
 
@@ -35,7 +35,7 @@ void EmitterPanel::draw(EmitterTracker& tracker) {
         }
         ImGui::SameLine();
         if (ImGui::Button("Export Tracks (JSON)##emit_export_json")) {
-            SigMFExporter::exportJSON("recordings/emitter_tracks.json", {}, tracker.getEmitters(), 2000000.0, 0.0);
+            SigMFExporter::exportJSON("recordings/emitter_tracks.json", {}, tracker.getEmitters(), sampleRate, 0.0);
         }
     }
 

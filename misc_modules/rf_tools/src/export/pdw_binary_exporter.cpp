@@ -12,7 +12,7 @@ PdwBinaryExporter::~PdwBinaryExporter() {
     stopRecording();
 }
 
-bool PdwBinaryExporter::startRecording(const std::string& filePath, double sampleRate, double centerFreqHz, float refLevelDbm, bool isCalibrated) {
+bool PdwBinaryExporter::startRecording(const std::string& filePath, double sampleRate, double centerFreqHz, float refLevelDbm, bool isCalibrated, double timeBaseUnix) {
     std::lock_guard<std::mutex> lock(_mutex);
     if (_isRecording.load()) {
         stopRecording();
@@ -34,14 +34,17 @@ bool PdwBinaryExporter::startRecording(const std::string& filePath, double sampl
     PdwBinaryHeader header;
     std::memset(&header, 0, sizeof(header));
     std::memcpy(header.magic, "SDRPPPDW", 8);
-    header.version = 1;
+    header.version = 2;
     header.headerSize = sizeof(PdwBinaryHeader);
     header.recordSize = sizeof(PdwBinaryRecord);
     header.sampleRate = sampleRate;
     header.centerFreqHz = centerFreqHz;
     header.refLevelDbm = refLevelDbm;
     header.isCalibrated = isCalibrated ? 1 : 0;
-    header.startTimeUnix = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    auto now = std::chrono::system_clock::now().time_since_epoch();
+    header.startTimeUnix = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+    // Without a detector start time the best available base is the moment recording started
+    header.timeBaseUnix = timeBaseUnix > 0.0 ? timeBaseUnix : std::chrono::duration<double>(now).count();
 
     _file.write(reinterpret_cast<const char*>(&header), sizeof(header));
     if (!_file.good()) {

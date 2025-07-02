@@ -162,7 +162,7 @@ namespace rf_tools {
                     if (ImGui::Button("Start Live Stream Recording##pdw_btn_start_rec")) {
                         float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain(), calTable->getPort(), calTable->getChannel()) : 0.0f;
                         bool isCal = (calTable && calTable->isEnabled());
-                        binExporter->startRecording(_exportPath, 2000000.0, centerFreq, ref, isCal);
+                        binExporter->startRecording(_exportPath, detector.getSampleRate(), centerFreq, ref, isCal, detector.getStartTimeUnix());
                     }
                     ImGui::PopStyleColor();
                 }
@@ -175,14 +175,14 @@ namespace rf_tools {
                 if (_exportFormatIdx == 0) {
                     ok = SigMFExporter::exportCSV(_exportPath, pdws);
                 } else if (_exportFormatIdx == 1) {
-                    ok = SigMFExporter::exportJSON(_exportPath, pdws, {}, 2000000.0, centerFreq);
+                    ok = SigMFExporter::exportJSON(_exportPath, pdws, {}, detector.getSampleRate(), centerFreq);
                 } else if (_exportFormatIdx == 2) {
-                    ok = SigMFExporter::exportSigMF(_exportPath, pdws, 2000000.0, centerFreq);
+                    ok = SigMFExporter::exportSigMF(_exportPath, pdws, detector.getSampleRate(), centerFreq);
                 } else if (binExporter) {
                     float ref = (calTable && calTable->isEnabled()) ? calTable->getRefLevelDbm(centerFreq, calTable->getHardwareGain(), calTable->getPort(), calTable->getChannel()) : 0.0f;
                     bool isCal = (calTable && calTable->isEnabled());
                     PdwBinaryExporter tempExp;
-                    if (tempExp.startRecording(_exportPath, 2000000.0, centerFreq, ref, isCal)) {
+                    if (tempExp.startRecording(_exportPath, detector.getSampleRate(), centerFreq, ref, isCal, detector.getStartTimeUnix())) {
                         tempExp.writePulses(pdws);
                         tempExp.stopRecording();
                         ok = true;

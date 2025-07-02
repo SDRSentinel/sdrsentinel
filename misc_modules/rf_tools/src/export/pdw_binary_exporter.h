@@ -33,15 +33,16 @@ struct PdwBinaryRecord {
 
 struct PdwBinaryHeader {
     char magic[8];         // "SDRPPPDW"
-    uint32_t version;      // 1
+    uint32_t version;      // 2 (1 files lack timeBaseUnix)
     uint32_t headerSize;   // sizeof(PdwBinaryHeader)
     uint32_t recordSize;   // sizeof(PdwBinaryRecord)
     double sampleRate;
     double centerFreqHz;
     float refLevelDbm;
     uint8_t isCalibrated;
-    int64_t startTimeUnix;
-    char reserved[32];
+    int64_t startTimeUnix; // wall-clock second at which recording started
+    double timeBaseUnix;   // wall-clock Unix time of detector sample 0 (v2), absolute TOA = timeBaseUnix + toa
+    char reserved[24];
 };
 #pragma pack(pop)
 
@@ -50,7 +51,7 @@ public:
     PdwBinaryExporter();
     ~PdwBinaryExporter();
 
-    bool startRecording(const std::string& filePath, double sampleRate, double centerFreqHz, float refLevelDbm = 0.0f, bool isCalibrated = false);
+    bool startRecording(const std::string& filePath, double sampleRate, double centerFreqHz, float refLevelDbm = 0.0f, bool isCalibrated = false, double timeBaseUnix = 0.0);
     void writePulse(const PDW& pdw);
     void writePulses(const std::vector<PDW>& pdws);
     void stopRecording();

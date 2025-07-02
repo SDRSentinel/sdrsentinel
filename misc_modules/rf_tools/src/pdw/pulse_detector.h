@@ -39,6 +39,9 @@ namespace rf_tools {
         double getMinPulseWidth() const { return _minPw; }
         double getMaxPulseWidth() const { return _maxPw; }
         uint64_t getTotalPulses() const { return _totalPulses; }
+        double getSampleRate() const { return _sampleRate; }
+        // Wall-clock time (Unix seconds) at which detector sample 0 was taken, absolute TOA = this + PDW toa
+        double getStartTimeUnix() const { return _startTimeUnix; }
 
     private:
         enum State {
@@ -69,6 +72,7 @@ namespace rf_tools {
 
         State _state = SEARCHING;
         uint64_t _totalSamples = 0;
+        double _startTimeUnix = 0.0;
         uint64_t _pulseStartSample = 0;
         uint64_t _totalPulses = 0;
 

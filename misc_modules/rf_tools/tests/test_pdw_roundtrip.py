@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SDR++ rf_tools PDW C++ to Python Round-Trip and HDF5 Integrity Test
-Validates binary serialization against GTRI gr-pdw schema.
+Validates binary serialization and the gr-pdw style HDF5 layout (see read_sdrpp_pdw.py for the differences).
 """
 
 import sys
@@ -47,17 +47,21 @@ def main():
     records = data["records"]
 
     # 1. Validate Header
-    assert math.isclose(meta["samp_rate"], 2.0e6, rel_tol=1e-5), f"Sample rate mismatch: {meta['samp_rate']}"
+    fs = 2.4e6
+    time_base = 1700000000.25
+    assert meta["version"] == 2, f"Header version mismatch: {meta['version']}"
+    assert math.isclose(meta["samp_rate"], fs, rel_tol=1e-9), f"Sample rate mismatch: {meta['samp_rate']}"
+    assert meta["time_base_unix"] == time_base, f"Time base mismatch: {meta['time_base_unix']}"
     assert math.isclose(meta["center_freq"], 433.92e6, rel_tol=1e-5), f"Center freq mismatch: {meta['center_freq']}"
     assert math.isclose(meta["ref_level"], -25.0, rel_tol=1e-4), f"Ref level mismatch: {meta['ref_level']}"
-    print("  -> Header metadata asserted: 2.0 MSPS, 433.92 MHz, Ref -25 dBm: MATCH")
+    print("  -> Header metadata asserted: 2.4 MSPS, time base, 433.92 MHz, Ref -25 dBm: MATCH")
 
     # 2. Validate Records count and content
     assert len(records) == 10, f"Expected 10 records, got {len(records)}"
     for i, r in enumerate(records, start=1):
         assert r["pulse_index"] == i, f"Pulse index mismatch at {i}: {r['pulse_index']}"
         assert r["sample_index"] == i * 2000, f"Sample index mismatch at {i}"
-        expected_toa = (i * 2000) / 2.0e6
+        expected_toa = (i * 2000) / fs
         assert math.isclose(r["toa"], expected_toa, rel_tol=1e-6), f"TOA mismatch at {i}"
         assert r["course_toa"] == int(math.floor(expected_toa))
         assert math.isclose(r["pulse_width_secs"], 10.0e-6, rel_tol=1e-6)
@@ -74,35 +78,48 @@ def main():
     convert_to_hdf5(data, h5_path)
     assert os.path.exists(h5_path), f"HDF5 file was not created: {h5_path}"
 
-    # 4. Read back HDF5 and verify GTRI gr-pdw schema
+    # 4. Read back HDF5 and verify the gr-pdw style layout
     print(f"[TEST] Verifying HDF5 schema and dataset integrity...")
+    gr_pdw_datasets = ["pulse_width_samps", "pulse_width_secs", "pulse_power", "noise_power",
+                       "freq_start", "toa_course", "toa_fine"]
     with h5py.File(h5_path, "r") as hf:
-        assert math.isclose(hf.attrs["samp_rate"], 2.0e6, rel_tol=1e-5)
+        for attr in ("time_unix", "time_py", "samp_rate", "ref_level"):
+            assert attr in hf.attrs, f"Missing attribute {attr}"
+        assert "center_freq" not in hf.attrs
+        assert math.isclose(hf.attrs["samp_rate"], fs, rel_tol=1e-9)
         assert math.isclose(hf.attrs["ref_level"], -25.0, rel_tol=1e-4)
-        assert math.isclose(hf.attrs["center_freq"], 433.92e6, rel_tol=1e-5)
+        assert hf.attrs["time_unix"] == time_base
+        assert hf.attrs["time_py"] == "2023-11-14T22:13:20Z", hf.attrs["time_py"]
 
-        required_datasets = [
-            "pulse_width_samps", "pulse_width_secs", "pulse_power", "noise_power",
-            "freq_start", "toa_course", "toa_fine", "pri"
-        ]
-        for ds_name in required_datasets:
-            assert ds_name in hf, f"Missing dataset {ds_name} in HDF5"
-            arr = hf[ds_name][:]
-            assert len(arr) == 10, f"Dataset {ds_name} length {len(arr)} != 10"
+        top = [k for k in hf.keys() if k != "sdrpp"]
+        assert top == gr_pdw_datasets, f"Dataset names/order mismatch: {top}"
+        for ds_name in gr_pdw_datasets:
+            ds = hf[ds_name]
+            assert ds.dtype == np.float64, f"{ds_name} dtype {ds.dtype}"
+            assert ds.maxshape == (None,), f"{ds_name} maxshape {ds.maxshape}"
+            assert ds.chunks is not None, f"{ds_name} is not chunked"
+            assert len(ds[:]) == 10, f"Dataset {ds_name} length {len(ds[:])} != 10"
+        for ds_name in ("pulse_power", "noise_power", "toa_course", "toa_fine"):
+            assert "definition" in hf[ds_name].attrs, f"{ds_name} lacks a definition attribute"
 
-        pw_samps = hf["pulse_width_samps"][:]
-        pw_secs = hf["pulse_width_secs"][:]
-        p_pwr = hf["pulse_power"][:]
-        n_pwr = hf["noise_power"][:]
-        pri = hf["pri"][:]
+        np.testing.assert_array_equal(hf["pulse_width_samps"][:], np.full(10, 20.0))
+        np.testing.assert_allclose(hf["pulse_width_secs"][:], 10.0e-6, rtol=1e-6)
+        np.testing.assert_allclose(hf["pulse_power"][:], -40.0, rtol=1e-4)
+        np.testing.assert_allclose(hf["noise_power"][:], -95.0, rtol=1e-4)
 
-        np.testing.assert_array_equal(pw_samps, np.full(10, 20, dtype=np.uint32))
-        np.testing.assert_allclose(pw_secs, 10.0e-6, rtol=1e-6)
-        np.testing.assert_allclose(p_pwr, -40.0, rtol=1e-4)
-        np.testing.assert_allclose(n_pwr, -95.0, rtol=1e-4)
-        np.testing.assert_allclose(pri, 0.001, rtol=1e-6)
+        # Absolute time reconstruction from time base + relative TOA
+        assert "sdrpp" in hf, "Missing sdrpp group"
+        g = hf["sdrpp"]
+        for name in ("pulse_index", "sample_index", "toa", "absolute_freq", "average_power", "snr", "pri", "doa_azimuth"):
+            assert name in g and g[name].dtype == np.float64 and g[name].maxshape == (None,), f"sdrpp/{name}"
+        assert math.isclose(g.attrs["center_freq"], 433.92e6, rel_tol=1e-5)
+        np.testing.assert_allclose(g["pri"][:], 0.001, rtol=1e-6)
+        abs_toa = hf.attrs["time_unix"] + g["toa"][:]
+        expected = time_base + np.arange(1, 11) * 2000 / fs
+        np.testing.assert_allclose(abs_toa, expected, rtol=0, atol=1e-9)
+        np.testing.assert_array_equal(hf["toa_course"][:], np.full(10, math.floor(time_base)))
 
-    print("  -> HDF5 datasets (8 fields x 10 records) verified against C++ ground truth: MATCH")
+    print("  -> HDF5 gr-pdw style datasets (7 fields x 10 records) and sdrpp group verified against C++ ground truth: MATCH")
     print("============================================================")
     print("   PDW C++ <-> Python HDF5 ROUND-TRIP TEST PASSED!          ")
     print("============================================================")

@@ -4,6 +4,8 @@
 #include <vector>
 #include <complex>
 #include <filesystem>
+#include <fstream>
+#include <cstring>
 #include <chrono>
 #include <random>
 
@@ -125,16 +127,18 @@ int main() {
         std::string testPath = "test_output/pdw_test.pdwbin";
         std::filesystem::create_directories("test_output");
 
-        bool ok = exporter.startRecording(testPath, 2.0e6, 433.92e6, -25.0f, true);
+        const double fs = 2.4e6;
+        const double timeBase = 1700000000.25;
+        bool ok = exporter.startRecording(testPath, fs, 433.92e6, -25.0f, true, timeBase);
         TEST_CHECK(ok, "Failed to start PDW binary recording");
 
         for (uint64_t i = 1; i <= 10; ++i) {
             rf_tools::PDW p;
             p.pulseIndex = i;
             p.sampleIndex = i * 2000;
-            p.toa = static_cast<double>(p.sampleIndex) / 2.0e6;
+            p.toa = static_cast<double>(p.sampleIndex) / fs;
             p.courseToa = static_cast<int64_t>(std::floor(p.toa));
-            p.fineToa = static_cast<uint64_t>(std::round((p.toa - std::floor(p.toa)) * 2.0e6));
+            p.fineToa = static_cast<uint64_t>(std::round((p.toa - std::floor(p.toa)) * fs));
             p.pulseWidth = 10.0e-6;
             p.pulseWidthSamples = 20;
             p.peakPower = -15.0f;
@@ -156,6 +160,17 @@ int main() {
         auto fsize = std::filesystem::file_size(testPath);
         size_t expectedSize = sizeof(rf_tools::PdwBinaryHeader) + 10 * sizeof(rf_tools::PdwBinaryRecord);
         TEST_CHECK(fsize == expectedSize, "File size does not match exact sizeof(Header) + 10 * sizeof(Record)");
+
+        std::ifstream hf(testPath, std::ios::binary);
+        rf_tools::PdwBinaryHeader hdr;
+        hf.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
+        TEST_CHECK(hf.good(), "Could not read PDW header back");
+        TEST_CHECK(std::memcmp(hdr.magic, "SDRPPPDW", 8) == 0, "Header magic mismatch");
+        TEST_CHECK(hdr.version == 2, "Header version mismatch");
+        TEST_CHECK(hdr.headerSize == sizeof(rf_tools::PdwBinaryHeader), "Header size field mismatch");
+        TEST_CHECK(hdr.recordSize == sizeof(rf_tools::PdwBinaryRecord), "Record size field mismatch");
+        TEST_CHECK(hdr.sampleRate == fs, "Header sample rate was not the one passed in");
+        TEST_CHECK(hdr.timeBaseUnix == timeBase, "Header time base mismatch");
 
         std::cout << "  -> Recorded 10 PDWs, File size: " << fsize << " bytes\n";
         std::cout << "  -> PASSED.\n";
