@@ -253,7 +253,7 @@ MOPResult MOPAnalyzer::analyze(const std::vector<dsp::complex_t>& samples, doubl
         result.type = MOPType::UNMODULATED_CW;
     }
 
-    // GPU_SDR-adapted Chirp Matched Filter Pulse Compression
+    // Chirp matched filter pulse compression
     if (result.type == MOPType::LFM_CHIRP_UP || result.type == MOPType::LFM_CHIRP_DOWN) {
         mop::ChirpMatchedFilter mf;
         mf.init(sampleRate);

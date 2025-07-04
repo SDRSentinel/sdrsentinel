@@ -46,11 +46,12 @@ public:
     std::vector<VNASweepPoint> getTrace() const;
     ResonatorDipFit getDipFit() const;
 
-    // Resonator dip / transmission peak curve fitting
-    // Inspired by GPU_SDR pyUSRP USRP_VNA.py fit_resonator
+    // Resonator dip / transmission peak estimate from |S21| in dB only (phase, cable delay, asymmetry and
+    // nonlinearity are ignored): -3 dB style width gives Q_L, then Q_i and Q_c are derived from the dip depth.
+    // This is not a complex S21 fit.
     ResonatorDipFit fitResonance(const std::vector<VNASweepPoint>& trace, bool findDip = true) const;
 
-    // Synthetic sweep generator for hardware-free simulation / testing
+    // Synthetic sweep generator; there is no hardware sweep path
     void generateSyntheticResonatorSweep(double f0 = 100.0e6, double q = 2500.0, float depthDb = 25.0f);
 
 private:

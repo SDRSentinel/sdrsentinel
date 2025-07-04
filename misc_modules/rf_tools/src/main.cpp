@@ -355,7 +355,7 @@ private:
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("VNA / Resonator (JPL)")) {
+            if (ImGui::BeginTabItem("Resonator (S21 magnitude)")) {
                 mod->vnaPanel.draw(mod->vnaAnalyzer);
                 ImGui::EndTabItem();
             }
@@ -393,7 +393,7 @@ private:
     rf_tools::beamforming::AdaptiveBeamformer beamformer;
     rf_tools::BeamformerPanel beamformerPanel;
 
-    // GPU_SDR-adapted VNA and Resonator Readout
+    // Resonator analysis of an S21 magnitude trace (synthetic sweep only)
     rf_tools::vna::VNAAnalyzer vnaAnalyzer;
     rf_tools::VNAPanel vnaPanel;
 

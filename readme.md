@@ -335,14 +335,14 @@ Other module changes:
   - I added right click menu to the frequency list to add a new frequency.
 
 * In rf_tools (`misc_modules/rf_tools`):
-  - Advanced Electronic Warfare & Radar suite porting and modernizing `gr-pdw`, `gr-doa`, and `GPU_SDR`.
-  - Real-time pulse detection (CFAR / threshold) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
-  - High-speed binary `.pdwbin` streaming and Python GTRI HDF5 converter.
+  - Radar / EW analysis suite: DOA code translated from `gr-doa`, B210 calibration data and HDF5 layout from `gr-pdw` (see the module README for credits and licenses).
+  - Real-time pulse detection (noise margin threshold with hysteresis) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
+  - High-speed binary `.pdwbin` streaming and Python HDF5 converter using the gr-pdw dataset names.
   - Multi-channel Direction Finding (Root-MUSIC and 2D URA MUSIC) with phase equalization wizard.
   - Adaptive spatial beamforming (Bartlett, MVDR/Capon jammer suppression, LCMV multi-null steering).
   - Intra-pulse Modulation on Pulse (MOP) analysis (LFM chirp slopes, Barker codes, STFT spectrogram).
   - Live Chirp Matched Filter & pulse compression visualizer in ScopePanel (compressed envelope, -3 dB width, Hamming/Hann sidelobe suppression, PSLR readout).
-  - JPL/Caltech VNA resonator readout (S21 Lorentzian notch fitting, loaded Q_L, internal Q_i, coupling Q_c).
+  - Resonator analysis of an S21 magnitude trace (synthetic sweep only; width-based Q_L, Q_i, Q_c estimate).
 
 
 # Module List

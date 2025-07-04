@@ -28,13 +28,8 @@ public:
     void init(double sampleRate);
     void setSampleRate(double sampleRate) { _sampleRate = sampleRate; }
 
-    // Synthesize reference linear frequency modulation (LFM) chirp replica
-    // Inspired by GPU_SDR chirp_gen
+    // Synthesize a reference continuous linear frequency modulation (LFM) chirp replica
     std::vector<std::complex<float>> generateReferenceChirp(double durationSec, double startFreqHz, double chirpRateHzPerSec) const;
-
-    // Direct De-Chirp mixing: out[n] = in[n] * conj(ref[n])
-    // Inspired directly by GPU_SDR chirp_demodulator
-    void dechirpMix(const std::complex<float>* input, size_t count, double startFreqHz, double chirpRateHzPerSec, std::complex<float>* output) const;
 
     enum class WindowType {
         RECTANGULAR = 0,
@@ -42,7 +37,7 @@ public:
         HANN
     };
 
-    // Matched filter pulse compression via FFT fast convolution
+    // Matched filter pulse compression of a continuous LFM pulse via FFT fast convolution
     ChirpCompressionResult compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate, WindowType window = WindowType::RECTANGULAR);
 
 private:

@@ -41,7 +41,7 @@ struct MOPResult {
     std::vector<float> qSamples;
     STFTSpectrogram spectrogram;
 
-    // GPU_SDR-inspired Chirp Matched Filter Pulse Compression
+    // Chirp matched filter pulse compression
     bool hasChirpCompression = false;
     float compressionRatio = 1.0f;
     float compressedSnrGainDb = 0.0f;

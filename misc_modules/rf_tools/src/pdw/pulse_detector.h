@@ -13,6 +13,8 @@ namespace rf_tools {
         std::vector<dsp::complex_t> noiseSamples;
     };
 
+    // Fixed dB margin over an exponential-average noise estimate (or a fixed threshold), with 3 dB hysteresis
+    // on the falling edge and min/max pulse width gating. Not a CFAR detector.
     class PulseDetector {
     public:
         using PulseCallback = std::function<void(const RawPulse&)>;

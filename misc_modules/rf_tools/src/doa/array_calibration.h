@@ -20,7 +20,8 @@ public:
     bool isEnabled() const;
 
     // Automatic inter-channel phase & amplitude offset estimation from coherent snapshots
-    // Inspired by Ettus gr-doa twinrx_phase_offset_est
+    // Cross-correlation against channel 0. Net correction matches gr-doa's phase_correct, but the stored
+    // phase has the opposite sign and the JSON file format differs.
     // Offline/test helper: the live module does not call it (the panel uses MUSICEngine::calibrateFromPilot)
     bool estimateFromSnapshots(const std::complex<float>* interleaved_snapshots, size_t num_channels, size_t num_snapshots);
 

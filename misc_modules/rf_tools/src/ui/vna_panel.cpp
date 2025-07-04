@@ -47,7 +47,7 @@ void VNAPanel::draw(vna::VNAAnalyzer& analyzer) {
         }
 
         ImGui::Spacing();
-        if (ImGui::Button("Simulate JPL Resonator Sweep##vna_sim_btn")) {
+        if (ImGui::Button("Simulate resonator sweep##vna_sim_btn")) {
             double f0 = (ui_start_mhz_ + ui_stop_mhz_) * 0.5 * 1e6;
             analyzer.generateSyntheticResonatorSweep(f0, ui_synth_q_, ui_synth_depth_);
         }

@@ -66,22 +66,6 @@ std::vector<std::complex<float>> ChirpMatchedFilter::generateReferenceChirp(doub
     return ref;
 }
 
-void ChirpMatchedFilter::dechirpMix(const std::complex<float>* input, size_t count, double startFreqHz, double chirpRateHzPerSec, std::complex<float>* output) const {
-    if (!input || !output || count == 0) return;
-
-    double dt = 1.0 / _sampleRate;
-    for (size_t n = 0; n < count; ++n) {
-        double t = n * dt;
-        double phase = TWO_PI * (startFreqHz * t + 0.5 * chirpRateHzPerSec * t * t);
-        // conj(chirp): cos(phase) - j * sin(phase)
-        std::complex<float> refConj(
-            static_cast<float>(std::cos(phase)),
-            static_cast<float>(-std::sin(phase))
-        );
-        output[n] = input[n] * refConj;
-    }
-}
-
 ChirpCompressionResult ChirpMatchedFilter::compressPulse(const std::vector<std::complex<float>>& pulseSamples, double estimatedChirpRate, WindowType window) {
     ChirpCompressionResult res;
     if (pulseSamples.size() < 16 || std::abs(estimatedChirpRate) < 1.0e6) {
