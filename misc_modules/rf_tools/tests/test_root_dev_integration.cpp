@@ -8,6 +8,7 @@
 #include <cstring>
 #include <chrono>
 #include <random>
+#include <algorithm>
 
 #include "pdw/power_cal.h"
 #include "export/pdw_binary_exporter.h"
@@ -27,13 +28,13 @@
 int main() {
     flog::logLevel = flog::TYPE_WARNING;
     std::cout << "============================================================\n";
-    std::cout << "   rf_tools root_dev Comprehensive Verification Test Suite  \n";
+    std::cout << "   rf_tools Software Self-Consistency Test Suite            \n";
     std::cout << "============================================================\n";
 
     // ------------------------------------------------------------------------
-    // TEST 1: gr-pdw Power Calibration Engine (dBFS -> dBm & B210 Range Check)
+    // TEST 1: Power Calibration Engine (GTRI reference values) (dBFS -> dBm & B210 Range Check)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 1. gr-pdw Power Calibration Engine (USRP B210 Hardware Limits)...\n";
+    std::cout << "[TEST] 1. Power calibration (checked against GTRI gr-pdw reference values; B210 range check)...\n";
     {
         rf_tools::PowerCalibrationTable calTable;
         calTable.loadDefaultB210();
@@ -119,9 +120,9 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 2: gr-pdw High-Speed Binary Exporter & Timing Compatibility
+    // TEST 2: Binary PDW Exporter (self-consistency)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 2. gr-pdw Binary PDW Streaming & Serialization...\n";
+    std::cout << "[TEST] 2. Binary PDW serialization (header and record sizes, sample rate, time base)...\n";
     {
         rf_tools::PdwBinaryExporter exporter;
         std::string testPath = "test_output/pdw_test.pdwbin";
@@ -177,9 +178,9 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 3: gr-doa Inter-Channel Phase Equalization Math & Alignment
+    // TEST 3: Inter-channel phase equalization (self-consistency, synthetic data)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 3. gr-doa Multi-Channel Phase & Gain Offset Calibration...\n";
+    std::cout << "[TEST] 3. Multi-channel phase and gain offset estimation on synthetic snapshots...\n";
     {
         size_t M = 4;
         size_t K = 512;
@@ -217,11 +218,12 @@ int main() {
         calib.applyCorrection(snapshots.data(), M, K);
 
         // Mathematical verification: after correction, all channels must have identical phase to channel 0
+        // (compared at snapshot 0; the residual is the angle of snapshot[k] relative to snapshot[0] in degrees)
+        float maxResidualDeg = 0.0f;
         for (size_t k = 0; k < M; ++k) {
-            float dotProduct = snapshots[k].real() * snapshots[0].real() + snapshots[k].imag() * snapshots[0].imag();
-            float magProduct = std::abs(snapshots[k]) * std::abs(snapshots[0]);
-            float cosAngle = dotProduct / (magProduct + 1e-9f);
-            TEST_CHECK(cosAngle > 0.999f, "Phase alignment failed");
+            float residualDeg = std::abs(std::arg(snapshots[k] * std::conj(snapshots[0]))) * 180.0f / 3.14159265f;
+            maxResidualDeg = std::max(maxResidualDeg, residualDeg);
+            TEST_CHECK(residualDeg < 0.05f, "Phase alignment residual exceeds 0.05 deg");
         }
 
         // Test save & load
@@ -234,14 +236,14 @@ int main() {
         }
 
         std::cout << "  -> Measured phase offsets: [0.0, " << estPhases[1] << ", " << estPhases[2] << ", " << estPhases[3] << "] deg\n";
-        std::cout << "  -> Sign convention check: g_k = exp(-j * Delta_phi_k) aligned channels with residual < 0.05 deg\n";
+        std::cout << "  -> After correction, max phase residual vs channel 0: " << maxResidualDeg << " deg (asserted < 0.05 deg)\n";
         std::cout << "  -> PASSED.\n";
     }
 
     // ------------------------------------------------------------------------
-    // TEST 4: GPU_SDR Chirp Matched Filter: AWGN Noise, Windowing & Golden Vectors
+    // TEST 4: Chirp matched filter: AWGN noise, windowing, Doppler (self-consistency)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 4. GPU_SDR Chirp Matched Filter (Ideal, AWGN Noise, Doppler & Windowing)...\n";
+    std::cout << "[TEST] 4. Chirp matched filter on synthetic LFM (ideal, AWGN, Doppler, windowing)...\n";
     {
         rf_tools::mop::ChirpMatchedFilter mf;
         double fs = 10.0e6; // 10 MSPS
@@ -324,14 +326,19 @@ int main() {
         }
         auto compDoppler = mf.compressPulse(dopplerChirp, chirpRate);
         TEST_CHECK(compDoppler.detected, "Doppler shifted chirp must still be detected");
-        std::cout << "  [4D: Doppler] Shift +50 kHz detected with compression ratio: " << compDoppler.compressionRatio << "x\n";
+        // The envelope is normalized to its own peak, so absolute peak loss is not measured; the checks bound the
+        // compression ratio and the PSLR change relative to the zero-Doppler case.
+        TEST_CHECK(compDoppler.compressionRatio > 40.0f, "Compression ratio with +50 kHz Doppler should stay above 40x");
+        TEST_CHECK(compDoppler.pslrDb < compClean.pslrDb + 3.0f, "+50 kHz Doppler must degrade PSLR by less than 3 dB");
+        std::cout << "  [4D: Doppler] +50 kHz: compression ratio " << compDoppler.compressionRatio << "x (zero Doppler " << compClean.compressionRatio
+                  << "x), PSLR " << compDoppler.pslrDb << " dB (zero Doppler " << compClean.pslrDb << " dB)\n";
         std::cout << "  -> PASSED.\n";
     }
 
     // ------------------------------------------------------------------------
-    // TEST 5: GPU_SDR VNA Resonator S21 Dip Fitting (Physical Consistency)
+    // TEST 5: Resonator S21 magnitude analysis on a synthetic sweep (self-consistency)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 5. GPU_SDR VNA Resonator S21 Dip Fitting (Physical Q_L, Q_i, Q_c Verification)...\n";
+    std::cout << "[TEST] 5. Resonator S21 magnitude analysis (Q_L, Q_i, Q_c on a synthetic Lorentzian notch)...\n";
     {
         rf_tools::vna::VNAAnalyzer vna;
         double trueF0 = 100.0e6;
@@ -357,7 +364,7 @@ int main() {
         double qcErrRel = std::abs(fit.couplingQ - expectedQc) / expectedQc;
         double depthErr = std::abs(fit.dipDepthDb - trueDepthDb);
 
-        // Verification of fitted parameters against true physics
+        // Compare against the parameters used to generate the synthetic sweep
         TEST_CHECK(fErr < 1000.0, "Resonant frequency error must be < 1 kHz");
         TEST_CHECK(qErrRel < 0.02, "Loaded Q error must be < 2%");
         TEST_CHECK(qiErrRel < 0.02, "Internal Q error must be < 2%");
@@ -424,18 +431,12 @@ int main() {
     }
 
     std::cout << "\n============================================================\n";
-    std::cout << "   ALL ROOT_DEV INTEGRATION VERIFICATION TESTS PASSED!      \n";
+    std::cout << "   ALL TESTS PASSED                                         \n";
     std::cout << "============================================================\n";
-    std::cout << "   HARDWARE STATUS MATRIX:                                  \n";
-    std::cout << "   [PASS]        DSP Power Calibration Engine (B210 curve)  \n";
-    std::cout << "   [PASS]        Binary PDW Stream Serialization            \n";
-    std::cout << "   [PASS]        gr-doa Array Phase Equalization Math       \n";
-    std::cout << "   [PASS]        Chirp Matched Filter AWGN Processing Gain  \n";
-    std::cout << "   [PASS]        Chirp Doppler Offset & Hamming Windowing   \n";
-    std::cout << "   [PASS]        VNA Resonator Q_L, Q_i, Q_c Dip Fitting    \n";
-    std::cout << "   [PASS]        CPU Real-Time Throughput Benchmark         \n";
-    std::cout << "   [NOT TESTED]  Physical USRP B210 Over-the-Air Streaming \n";
-    std::cout << "   [NOT TESTED]  Physical TwinRX Multi-Channel LO Sync     \n";
+    std::cout << "   What was checked:                                        \n";
+    std::cout << "   - Test 1: power calibration vs GTRI reference values     \n";
+    std::cout << "   - Tests 2-6: software self-consistency on synthetic data \n";
+    std::cout << "   Real hardware (USRP B210, TwinRX) was NOT tested.        \n";
     std::cout << "============================================================\n";
     return 0;
 }
