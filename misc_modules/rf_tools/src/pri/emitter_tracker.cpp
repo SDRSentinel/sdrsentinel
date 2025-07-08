@@ -5,14 +5,13 @@
 namespace rf_tools {
 
 EmitterTracker::EmitterTracker() {
-    init(50.0e3, 1.5, 15.0f, 5.0);
+    init(50.0e3, 1.5, 5.0);
 }
 
-void EmitterTracker::init(double freqTolHz, double pwTolUs, float doaTolDeg, double timeoutSec) {
+void EmitterTracker::init(double freqTolHz, double pwTolUs, double timeoutSec) {
     std::lock_guard<std::mutex> lock(mutex_);
     freqTolHz_ = std::max(freqTolHz, 1.0e3);
     pwTolSeconds_ = std::max(pwTolUs, 0.1) * 1.0e-6;
-    doaTolDeg_ = std::max(doaTolDeg, 1.0f);
     timeoutSec_ = std::max(timeoutSec, 0.5);
     reset();
 }
@@ -26,12 +25,7 @@ double EmitterTracker::calculateDistance(const PDW& pdw, const TrackedEmitter& e
     double df = (pdw.absoluteFrequency - emitter.frequencyHz) / freqTolHz_;
     double dpw = (pdw.pulseWidth - emitter.pulseWidthSeconds) / pwTolSeconds_;
 
-    double ddoa = 0.0;
-    if (pdw.hasDoa && emitter.hasDoa) {
-        ddoa = static_cast<double>(pdw.doaAzimuth - emitter.doaAzimuthDeg) / doaTolDeg_;
-    }
-
-    return (df * df + dpw * dpw + ddoa * ddoa);
+    return (df * df + dpw * dpw);
 }
 
 void EmitterTracker::pruneInactive(double currentToa) {
@@ -71,15 +65,6 @@ uint32_t EmitterTracker::processPDW(const PDW& pdw) {
         e.pulseWidthSeconds = 0.85 * e.pulseWidthSeconds + 0.15 * pdw.pulseWidth;
         e.averagePowerDbfs = 0.85f * e.averagePowerDbfs + 0.15f * pdw.averagePower;
 
-        if (pdw.hasDoa) {
-            if (e.hasDoa) {
-                e.doaAzimuthDeg = 0.85f * e.doaAzimuthDeg + 0.15f * pdw.doaAzimuth;
-            } else {
-                e.doaAzimuthDeg = pdw.doaAzimuth;
-                e.hasDoa = true;
-            }
-        }
-
         e.priAnalyzer->addPulse(pdw);
         return e.id;
     }
@@ -89,8 +74,6 @@ uint32_t EmitterTracker::processPDW(const PDW& pdw) {
     new_emitter.id = nextEmitterId_++;
     new_emitter.frequencyHz = pdw.absoluteFrequency;
     new_emitter.pulseWidthSeconds = pdw.pulseWidth;
-    new_emitter.doaAzimuthDeg = pdw.hasDoa ? pdw.doaAzimuth : -1.0f;
-    new_emitter.hasDoa = pdw.hasDoa;
     new_emitter.averagePowerDbfs = pdw.averagePower;
     new_emitter.pulseCount = 1;
     new_emitter.firstSeenToa = pdw.toa;
@@ -116,11 +99,10 @@ std::vector<TrackedEmitter> EmitterTracker::getEmitters() const {
     return emitters_;
 }
 
-void EmitterTracker::setTolerances(double freqTolHz, double pwTolUs, float doaTolDeg) {
+void EmitterTracker::setTolerances(double freqTolHz, double pwTolUs) {
     std::lock_guard<std::mutex> lock(mutex_);
     freqTolHz_ = std::max(freqTolHz, 1.0e3);
     pwTolSeconds_ = std::max(pwTolUs, 0.1) * 1.0e-6;
-    doaTolDeg_ = std::max(doaTolDeg, 1.0f);
 }
 
 void EmitterTracker::setTimeout(double timeoutSec) {

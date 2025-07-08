@@ -14,7 +14,6 @@ public:
 private:
     float ui_freq_tol_khz_ = 50.0f;
     float ui_pw_tol_us_ = 1.5f;
-    float ui_doa_tol_deg_ = 15.0f;
     float ui_timeout_sec_ = 5.0f;
 
     int selected_emitter_id_ = -1;

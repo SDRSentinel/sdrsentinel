@@ -1,8 +1,10 @@
 # RF Tools Suite for SDR++ (`misc_modules/rf_tools`)
 
-Comprehensive Radar Electronic Warfare (EW), Direction Finding (DOA), Adaptive Beamforming, Pulse Modulation on Pulse (MOP), and Vector Network Analyzer (VNA) suite integrated directly into SDR++.
+Comprehensive Radar Electronic Warfare (EW) pulse analysis, Pulse Modulation on Pulse (MOP), and Vector Network Analyzer (VNA) suite integrated directly into SDR++.
 
-`rf_tools` is a set of C++ DSP engines with ImGui panels. The DOA code (MUSIC, Root-MUSIC, steering vector, pilot calibration) is translated from Ettus Research's **`gr-doa`**. The B210 power calibration data and the HDF5 layout come from Georgia Tech Research Institute's **`gr-pdw`**; the pulse detector and PDW extractor are an independent design inspired by it. The chirp matched filter, resonator analysis, beamformers and MOP analysis are written for this module. See "Credits and licenses" below.
+`rf_tools` is a set of C++ DSP engines with ImGui panels. The B210 power calibration data and the HDF5 layout come from Georgia Tech Research Institute's **`gr-pdw`**; the pulse detector and PDW extractor are an independent design inspired by it. The chirp matched filter, resonator analysis and MOP analysis are written for this module. See "Credits and licenses" below.
+
+Direction finding is not part of `rf_tools`. It is in the `kraken_doa` module (`misc_modules/kraken_doa`) and needs a KrakenSDR (a coherent 5-channel receiver).
 
 ---
 
@@ -19,7 +21,7 @@ SDR++ Core VFO Stream [IQ @ Fs]
       │         ├──> [PdwBinaryExporter] ──> High-speed .pdwbin recording (own binary format)
       │         │                             └── tools/read_sdrpp_pdw.py ──> HDF5 (.h5)
       │         ├──> [PRIAnalyzer] ────────> Histogram, Stagger, Jitter & PRI Agility
-      │         └──> [EmitterTracker] ─────> Cluster by Frequency, PW, PRI & DOA
+      │         └──> [EmitterTracker] ─────> Cluster by Frequency, PW & PRI
       │
       ├──> [ScopePanel / MOPAnalyzer] ────> Intra-pulse Envelope, Phase, Inst. Freq
       │         │                           ├── Barker 7/11/13 & Frank Phase Codes
@@ -29,16 +31,6 @@ SDR++ Core VFO Stream [IQ @ Fs]
       │         │                                 ├── FFT Fast Convolution Compression
       │         │                                 ├── Sidelobe Windowing (Hamming/Hann)
       │         │                                 └── Live Compressed Envelope Visualizer
-      │
-      ├──> [Direction Finding (DOA)] ─────> Coherent Multi-Channel Bus (4-8 Channels)
-      │         │                           ├── [ArrayCalibration] Pilot Equalization
-      │         │                           ├── [CovarianceAccumulator] Rxx Matrix
-      │         │                           └── [MUSICEngine] Root-MUSIC & 2D URA MUSIC
-      │         │
-      │         └──> [AdaptiveBeamformer] ─> Spatial Filtering & SINR Enhancement
-      │                                       ├── Bartlett (Delay-and-Sum)
-      │                                       ├── MVDR / Capon (Adaptive Jammer Nulling)
-      │                                       └── LCMV (Multi-Null Steering)
       │
       └──> [VNAAnalyzer] ───────────> S21 magnitude trace (synthetic sweep only)
                                               ├── Resonator dip/peak width from |S21| in dB
@@ -57,7 +49,6 @@ SDR++ Core VFO Stream [IQ @ Fs]
   * Pulse Width ($\mu\text{s}$ and samples).
   * Carrier frequency offset and absolute RF frequency.
   * Peak and average power (dBFS and calibrated dBm), noise floor, and SNR.
-  * Intra-pulse MOP modulation type and DOA azimuth/elevation angles.
 * **USRP B210 Power Calibration:**
   * GTRI B210 calibration data (from `b210_pdw.pickle` of gr-pdw, stored in `src/pdw/b210_cal.json`) mapping hardware gain ($0 - 80\text{ dB}$) and frequency ($70\text{ MHz} - 6.0\text{ GHz}$) to $0\text{ dBFS}$ reference level in $\text{dBm}$.
   * Enforces official Analog Devices AD9361 RFIC frequency specifications with automated out-of-range warnings for legacy $50-70\text{ MHz}$ data.
@@ -88,27 +79,7 @@ SDR++ Core VFO Stream [IQ @ Fs]
     * Peak-to-Sidelobe Ratio (PSLR in dB) measured outside the first mainlobe null.
     * Manual / Force Slope mode allowing real-time parameter tweaking for unknown or low-SNR chirps.
 
-### 3. Direction Finding (DOA) & Phase Equalization (`gr-doa`)
-* **High-Resolution Eigenspace Estimators:**
-  * **Root-MUSIC:** Root-finding along the unit circle for Uniform Linear Arrays (ULA), translated from gr-doa. On the synthetic two-source test the error is below $0.02^\circ$ (asserted $< 0.5^\circ$); a Monte Carlo test asserts the RMSE stays within 3x of the asymptotic CRLB.
-  * **2D Spectral MUSIC:** (written for this module) simultaneous 2D azimuth and elevation estimation for Uniform Rectangular Arrays (URA).
-* **Multi-Channel Inter-Channel Array Calibration:**
-  * Cross-correlation with reference channel 0:
-    $$R_{0k} = \sum_{n} x_0[n] x_k^*[n], \quad \Delta\phi_k = \phi_k - \phi_0 = -\arg(R_{0k})$$
-  * Phase and amplitude compensation weights:
-    $$g_k = \frac{1}{|A_k^{\text{rel}}|} e^{-j\Delta\phi_k} = \frac{1}{|A_k^{\text{rel}}|} e^{+j\arg(R_{0k})}$$
-  * On noise-free synthetic snapshots the residual after correction is below $0.05^\circ$ (asserted in test 3). This is an offline helper (`estimateFromSnapshots`); the live module calibrates from a pilot via `MUSICEngine::calibrateFromPilot`.
-  * The net correction equals gr-doa's `phase_correct`, but the stored phase has the opposite sign and the JSON format differs.
-  * Save and load array calibration profiles to/from JSON.
-
-### 4. Adaptive Spatial Beamforming
-* **Beamformer Algorithms:**
-  * **Bartlett (Delay-and-Sum):** Classical phase-steering with spatial array gain.
-  * **MVDR / Capon (Minimum Variance Distortionless Response):** Adaptive jammer cancellation (58 dB suppression of a single jammer in the synthetic test, asserted $> 25\text{ dB}$) while preserving look-direction signal of interest.
-  * **LCMV (Linearly Constrained Minimum Variance):** Simultaneous multi-null placement on multiple jamming directions.
-* **Audio / Demodulator Stream Tap:** Filters multi-channel coherent RF into a single enhanced channel fed back into SDR++ demodulators.
-
-### 5. Resonator Analysis of an S21 Magnitude Trace (`VNAAnalyzer`)
+### 3. Resonator Analysis of an S21 Magnitude Trace (`VNAAnalyzer`)
 * There is no hardware sweep path: the trace comes from a synthetic generator (`generateSyntheticResonatorSweep`) or `setFullTrace`. This is not a port of GPU_SDR, whose resonator fit is a complex nonlinear least-squares fit.
 * **Width-based resonator estimate:**
   * The generator uses the canonical Lorentzian notch model:
@@ -128,23 +99,20 @@ The module includes comprehensive automated C++ and Python verification test sui
 | :--- | :--- | :---: | :--- |
 | **Power calibration** | `./build/misc_modules/rf_tools/test_root_dev_integration` | **PASS** | 10 reference points computed from GTRI's `b210_pdw.pickle` within 0.05 dB, channel selection, no NaN over the table range, AD9361 range flag |
 | **Binary serialization** | same | **PASS** | 10 PDWs, file size = header + 10 records, header fields (sample rate, time base) read back |
-| **Phase equalization** | same | **PASS** | Phase offsets estimated within 0.1 deg; residual after correction $< 0.05^\circ$ (synthetic, noise-free) |
 | **Chirp AWGN gain** | same | **PASS** | In-band gain within 1.5 dB of $10\log_{10}(BT) = 19.03\text{ dB}$ at 0 and -6 dB input SNR |
 | **Chirp windowing** | same | **PASS** | Unwindowed PSLR $< -12.5\text{ dB}$, Hamming PSLR $< -28\text{ dB}$ |
 | **Chirp Doppler** | same | **PASS** | +50 kHz offset: compression ratio $> 40\times$ and PSLR within 3 dB of the zero-Doppler value (peak loss is not measured, the envelope is normalized) |
 | **Resonator Q analysis** | same | **PASS** | $f_0$ within 1 kHz, $Q_L$, $Q_i$, $Q_c$ within 2% of the synthetic generator's parameters |
-| **Root-MUSIC / 2D URA** | `./build/misc_modules/rf_tools/test_rf_tools_doa` | **PASS** | Synthetic angle errors $< 0.5^\circ$, RMSE within 3x of the CRLB |
-| **Adaptive beamforming** | `./build/misc_modules/rf_tools/test_rf_tools_beamforming` | **PASS** | MVDR jammer suppression $> 25\text{ dB}$, LCMV nulls $< -50\text{ dB}$ |
 | **Pulse detector** | `./build/misc_modules/rf_tools/test_rf_tools_pulse_detector` | **PASS** | Pulse widths and noise estimate on synthetic pulses |
 | **Python HDF5 round trip** | `uv run --no-project --with numpy --with h5py python misc_modules/rf_tools/tests/test_pdw_roundtrip.py` | **PASS** | C++ `.pdwbin` converted to HDF5 and read back; values equal the C++ input |
-| **CPU throughput** | `./build/misc_modules/rf_tools/test_root_dev_integration` | **PASS** | Loose lower bounds only (matched filter $> 5000$ pulses/s, calibration $> 1$ M snapshots/s) |
+| **CPU throughput** | `./build/misc_modules/rf_tools/test_root_dev_integration` | **PASS** | Loose lower bounds only (matched filter $> 5000$ pulses/s) |
 | **Physical USRP B210 OTA** | *Requires physical RF hardware* | **NOT TESTED** | |
 | **Physical TwinRX LO sync** | *Requires physical RF hardware* | **NOT TESTED** | |
 
 ### What is validated
 
 * Checked against external reference values: only the power calibration table (test 1, values taken from GTRI's `b210_pdw.pickle`).
-* Everything else is self-consistency on synthetic data generated by the same code base (or by the test itself). This includes the DOA, beamforming, matched filter, resonator and HDF5 tests. No test uses real RF captures or hardware, and nothing was compared against GPU_SDR output.
+* Everything else is self-consistency on synthetic data generated by the same code base (or by the test itself). This includes the matched filter, resonator and HDF5 tests. No test uses real RF captures or hardware, and nothing was compared against GPU_SDR output.
 * The test executable is still named `test_root_dev_integration` for historical reasons.
 
 ---
@@ -162,8 +130,7 @@ Run test suite:
 ```sh
 # C++ Integration and Unit Tests
 ./build/misc_modules/rf_tools/test_root_dev_integration
-./build/misc_modules/rf_tools/test_rf_tools_doa
-./build/misc_modules/rf_tools/test_rf_tools_beamforming
+./build/misc_modules/rf_tools/test_rf_tools_pulse_detector
 
 # Python PDW Binary -> HDF5 Round-Trip Test
 uv run --no-project --with numpy --with h5py python misc_modules/rf_tools/tests/test_pdw_roundtrip.py
@@ -174,5 +141,4 @@ uv run --no-project --with numpy --with h5py python misc_modules/rf_tools/tests/
 ## Credits and licenses
 
 * **gr-pdw** (https://github.com/gtri/gr-pdw, GPLv3, Copyright 2024 GTRI): the USRP B210 power calibration data (`src/pdw/b210_cal.json`, converted from `b210_pdw.pickle`) and the HDF5 dataset layout. The pulse detector and PDW extractor are an independent design inspired by gr-pdw, not a port.
-* **gr-doa** (https://github.com/EttusResearch/gr-doa, GPLv3, Copyright 2016 Srikanth Pagadarai, Travis F. Collins): the steering vector, Root-MUSIC and pilot calibration in `src/doa/music_engine.cpp` are translated from it. `ArrayCalibration` follows the idea of gr-doa's cross-correlation phase correction but is a separate implementation.
 * **GPU_SDR** (Apache-2.0): nothing in `rf_tools` is derived from it. The chirp matched filter and the resonator analysis were written independently of it.

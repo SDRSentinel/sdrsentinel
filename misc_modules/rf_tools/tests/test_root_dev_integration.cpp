@@ -12,7 +12,6 @@
 
 #include "pdw/power_cal.h"
 #include "export/pdw_binary_exporter.h"
-#include "doa/array_calibration.h"
 #include "mop/chirp_matched_filter.h"
 #include "vna/vna_analyzer.h"
 #include <utils/flog.h>
@@ -178,72 +177,9 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 3: Inter-channel phase equalization (self-consistency, synthetic data)
+    // TEST 3: Chirp matched filter: AWGN noise, windowing, Doppler (self-consistency)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 3. Multi-channel phase and gain offset estimation on synthetic snapshots...\n";
-    {
-        size_t M = 4;
-        size_t K = 512;
-        rf_tools::doa::ArrayCalibration calib(M);
-
-        // Synthetic channels with known hardware phase offsets and gain errors
-        float truePhaseOffsetsDeg[4] = { 0.0f, 45.0f, -60.0f, 110.0f };
-        float trueGainLinear[4] = { 1.0f, 0.8f, 1.25f, 0.95f };
-
-        std::vector<std::complex<float>> snapshots(K * M);
-        float dt = 1.0f / 2.0e6f;
-        for (size_t n = 0; n < K; ++n) {
-            float t = n * dt;
-            float phase_sig = 2.0f * 3.14159265f * 10000.0f * t;
-            std::complex<float> s(std::cos(phase_sig), std::sin(phase_sig));
-
-            for (size_t k = 0; k < M; ++k) {
-                float phi = truePhaseOffsetsDeg[k] * 3.14159265f / 180.0f;
-                std::complex<float> hwError = std::polar(trueGainLinear[k], phi);
-                snapshots[n * M + k] = s * hwError;
-            }
-        }
-
-        bool estOk = calib.estimateFromSnapshots(snapshots.data(), M, K);
-        TEST_CHECK(estOk, "Snapshot estimation failed");
-
-        auto estPhases = calib.getPhaseOffsetsDeg();
-        for (size_t k = 0; k < M; ++k) {
-            float err = std::abs(estPhases[k] - truePhaseOffsetsDeg[k]);
-            while (err > 180.0f) err = std::abs(err - 360.0f);
-            TEST_CHECK(err < 0.1f, "Phase estimation error too high");
-        }
-
-        // Apply correction
-        calib.applyCorrection(snapshots.data(), M, K);
-
-        // Mathematical verification: after correction, all channels must have identical phase to channel 0
-        // (compared at snapshot 0; the residual is the angle of snapshot[k] relative to snapshot[0] in degrees)
-        float maxResidualDeg = 0.0f;
-        for (size_t k = 0; k < M; ++k) {
-            float residualDeg = std::abs(std::arg(snapshots[k] * std::conj(snapshots[0]))) * 180.0f / 3.14159265f;
-            maxResidualDeg = std::max(maxResidualDeg, residualDeg);
-            TEST_CHECK(residualDeg < 0.05f, "Phase alignment residual exceeds 0.05 deg");
-        }
-
-        // Test save & load
-        calib.saveToFile("test_output/calib.json");
-        rf_tools::doa::ArrayCalibration calib2(M);
-        calib2.loadFromFile("test_output/calib.json");
-        auto loadedPhases = calib2.getPhaseOffsetsDeg();
-        for (size_t k = 0; k < M; ++k) {
-            TEST_CHECK(std::abs(loadedPhases[k] - estPhases[k]) < 1e-2f, "Loaded phase offset mismatch");
-        }
-
-        std::cout << "  -> Measured phase offsets: [0.0, " << estPhases[1] << ", " << estPhases[2] << ", " << estPhases[3] << "] deg\n";
-        std::cout << "  -> After correction, max phase residual vs channel 0: " << maxResidualDeg << " deg (asserted < 0.05 deg)\n";
-        std::cout << "  -> PASSED.\n";
-    }
-
-    // ------------------------------------------------------------------------
-    // TEST 4: Chirp matched filter: AWGN noise, windowing, Doppler (self-consistency)
-    // ------------------------------------------------------------------------
-    std::cout << "[TEST] 4. Chirp matched filter on synthetic LFM (ideal, AWGN, Doppler, windowing)...\n";
+    std::cout << "[TEST] 3. Chirp matched filter on synthetic LFM (ideal, AWGN, Doppler, windowing)...\n";
     {
         rf_tools::mop::ChirpMatchedFilter mf;
         double fs = 10.0e6; // 10 MSPS
@@ -336,9 +272,9 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 5: Resonator S21 magnitude analysis on a synthetic sweep (self-consistency)
+    // TEST 4: Resonator S21 magnitude analysis on a synthetic sweep (self-consistency)
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 5. Resonator S21 magnitude analysis (Q_L, Q_i, Q_c on a synthetic Lorentzian notch)...\n";
+    std::cout << "[TEST] 4. Resonator S21 magnitude analysis (Q_L, Q_i, Q_c on a synthetic Lorentzian notch)...\n";
     {
         rf_tools::vna::VNAAnalyzer vna;
         double trueF0 = 100.0e6;
@@ -390,11 +326,11 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 6: Real-time CPU DSP Benchmarks & Execution Characteristics
+    // TEST 5: Real-time CPU DSP Benchmarks & Execution Characteristics
     // ------------------------------------------------------------------------
-    std::cout << "[TEST] 6. Real-time CPU Throughput Benchmarking...\n";
+    std::cout << "[TEST] 5. Real-time CPU Throughput Benchmarking...\n";
     {
-        // 6A: Chirp Matched Filter Throughput
+        // Chirp Matched Filter Throughput
         rf_tools::mop::ChirpMatchedFilter mf;
         mf.init(10.0e6);
         auto chirp = mf.generateReferenceChirp(20.0e-6, -2.0e6, 2.0e11);
@@ -410,23 +346,9 @@ int main() {
         double pulsesPerSec = numPulses / elapsedSec;
         double equivalentMsps = (numPulses * chirp.size() / 1e6) / elapsedSec;
 
-        std::cout << "  [Benchmark 6A: Chirp MF] " << pulsesPerSec << " pulses/sec (" << equivalentMsps << " MSPS sustained FFTW CPU rate)\n";
+        std::cout << "  [Benchmark 5: Chirp MF] " << pulsesPerSec << " pulses/sec (" << equivalentMsps << " MSPS sustained FFTW CPU rate)\n";
         TEST_CHECK(pulsesPerSec > 5000.0, "Matched filter must process > 5,000 pulses/sec on modern CPU");
 
-        // 6B: Array Calibration 4-channel estimation throughput
-        rf_tools::doa::ArrayCalibration calib(4);
-        std::vector<std::complex<float>> snaps(512 * 4, std::complex<float>(0.707f, 0.707f));
-        size_t numCalibRuns = 2000;
-        auto tc0 = std::chrono::high_resolution_clock::now();
-        for (size_t i = 0; i < numCalibRuns; ++i) {
-            calib.estimateFromSnapshots(snaps.data(), 4, 512);
-        }
-        auto tc1 = std::chrono::high_resolution_clock::now();
-        double elapsedCalibSec = std::chrono::duration<double>(tc1 - tc0).count();
-        double snapsPerSec = (numCalibRuns * 512) / elapsedCalibSec;
-
-        std::cout << "  [Benchmark 6B: DOA Array Calib] " << snapsPerSec / 1e6 << " M snapshots/sec processed\n";
-        TEST_CHECK(snapsPerSec > 1.0e6, "DOA calibration must process > 1M snapshots/sec");
         std::cout << "  -> PASSED.\n";
     }
 
@@ -435,7 +357,7 @@ int main() {
     std::cout << "============================================================\n";
     std::cout << "   What was checked:                                        \n";
     std::cout << "   - Test 1: power calibration vs GTRI reference values     \n";
-    std::cout << "   - Tests 2-6: software self-consistency on synthetic data \n";
+    std::cout << "   - Tests 2-5: software self-consistency on synthetic data \n";
     std::cout << "   Real hardware (USRP B210, TwinRX) was NOT tested.        \n";
     std::cout << "============================================================\n";
     return 0;

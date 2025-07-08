@@ -335,11 +335,10 @@ Other module changes:
   - I added right click menu to the frequency list to add a new frequency.
 
 * In rf_tools (`misc_modules/rf_tools`):
-  - Radar / EW analysis suite: DOA code translated from `gr-doa`, B210 calibration data and HDF5 layout from `gr-pdw` (see the module README for credits and licenses).
+  - Radar / EW analysis suite: B210 calibration data and HDF5 layout from `gr-pdw` (see the module README for credits and licenses).
   - Real-time pulse detection (noise margin threshold with hysteresis) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
   - High-speed binary `.pdwbin` streaming and Python HDF5 converter using the gr-pdw dataset names.
-  - Multi-channel Direction Finding (Root-MUSIC and 2D URA MUSIC) with phase equalization wizard.
-  - Adaptive spatial beamforming (Bartlett, MVDR/Capon jammer suppression, LCMV multi-null steering).
+  - Direction finding is in the `kraken_doa` module and needs a KrakenSDR (coherent 5-channel receiver).
   - Intra-pulse Modulation on Pulse (MOP) analysis (LFM chirp slopes, Barker codes, STFT spectrogram).
   - Live Chirp Matched Filter & pulse compression visualizer in ScopePanel (compressed envelope, -3 dB width, Hamming/Hann sidelobe suppression, PSLR readout).
   - Resonator analysis of an S21 magnitude trace (synthetic sweep only; width-based Q_L, Q_i, Q_c estimate).
@@ -413,7 +412,7 @@ Modules in beta are still included in releases for the most part but not enabled
 | frequency_manager   | Working    | -            | OPT_BUILD_FREQUENCY_MANAGER | ✅              | ✅               | ✅                         |
 | iq_exporter         | Working    | -            | OPT_BUILD_IQ_EXPORTER       | ✅              | ✅               | ⛔                         |
 | recorder            | Working    | -            | OPT_BUILD_RECORDER          | ✅              | ✅               | ✅                         |
-| rf_tools            | Working    | fftw3f, eigen3 | OPT_BUILD_RF_TOOLS        | ✅              | ✅               | ⛔                         |
+| rf_tools            | Working    | fftw3f         | OPT_BUILD_RF_TOOLS        | ✅              | ✅               | ⛔                         |
 | rigctl_client       | Unfinished | -            | OPT_BUILD_RIGCTL_CLIENT     | ✅              | ✅               | ⛔                         |
 | rigctl_server       | Working    | -            | OPT_BUILD_RIGCTL_SERVER     | ✅              | ✅               | ✅                         |
 | scanner             | Beta       | -            | OPT_BUILD_SCANNER           | ✅              | ✅               | ⛔                         |

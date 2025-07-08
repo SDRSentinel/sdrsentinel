@@ -1,7 +1,6 @@
 #pragma once
 #include "pdw.h"
 #include "pulse_detector.h"
-#include "../doa/music_engine.h"
 #include <fftw3.h>
 #include <vector>
 #include <complex>
@@ -20,11 +19,7 @@ namespace rf_tools {
         void setCalibrationTable(const PowerCalibrationTable* calTable) { _calTable = calTable; }
         void reset();
 
-        // Standard extraction
         PDW extract(const RawPulse& rawPulse);
-
-        // Multichannel intra-pulse extraction with DOA estimation
-        PDW extract(const RawPulse& rawPulse, const std::complex<float>* multichannel_data, size_t num_channels, doa::MUSICEngine* doa_engine);
 
     private:
         double _sampleRate = 1.0e6;

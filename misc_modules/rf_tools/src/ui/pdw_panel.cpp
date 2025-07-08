@@ -206,9 +206,9 @@ namespace rf_tools {
 
         bool showDbm = (calTable && calTable->isEnabled());
 
-        // PDW table (9 columns: ID, TOA, PW, dF, Pk, Avg, SNR, PRI, DOA)
+        // PDW table (8 columns: ID, TOA, PW, dF, Pk, Avg, SNR, PRI)
         int tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
-        if (ImGui::BeginTable("##pdw_table", 9, tableFlags, ImVec2(0, 240))) {
+        if (ImGui::BeginTable("##pdw_table", 8, tableFlags, ImVec2(0, 240))) {
             ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 40.0f);
             ImGui::TableSetupColumn("TOA (s)", ImGuiTableColumnFlags_WidthFixed, 75.0f);
             ImGui::TableSetupColumn("PW (us)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
@@ -217,7 +217,6 @@ namespace rf_tools {
             ImGui::TableSetupColumn(showDbm ? "Avg (dBm)" : "Avg (dBFS)", ImGuiTableColumnFlags_WidthFixed, 68.0f);
             ImGui::TableSetupColumn("SNR (dB)", ImGuiTableColumnFlags_WidthFixed, 60.0f);
             ImGui::TableSetupColumn("PRI (us)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
-            ImGui::TableSetupColumn("DOA (deg)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
             ImGui::TableHeadersRow();
 
             std::lock_guard<std::mutex> lock(_mutex);
@@ -257,13 +256,6 @@ namespace rf_tools {
                     ImGui::Text("%.1f", p.pri * 1.0e6);
                 } else {
                     ImGui::Text("--");
-                }
-
-                ImGui::TableSetColumnIndex(8);
-                if (p.hasDoa && p.doaAzimuth >= 0.0f) {
-                    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "%.1f", p.doaAzimuth);
-                } else {
-                    ImGui::TextDisabled("--");
                 }
             }
 

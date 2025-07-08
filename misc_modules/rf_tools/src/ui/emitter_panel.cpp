@@ -18,15 +18,12 @@ void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
         if (ImGui::SliderFloat("PW Tolerance (us)##emit_pwtol", &ui_pw_tol_us_, 0.2f, 10.0f, "%.2f us")) {
             changed = true;
         }
-        if (ImGui::SliderFloat("DOA Tolerance (deg)##emit_doatol", &ui_doa_tol_deg_, 2.0f, 45.0f, "%.1f deg")) {
-            changed = true;
-        }
         if (ImGui::SliderFloat("Timeout (sec)##emit_tout", &ui_timeout_sec_, 1.0f, 30.0f, "%.1f s")) {
             tracker.setTimeout(ui_timeout_sec_);
         }
 
         if (changed) {
-            tracker.setTolerances(ui_freq_tol_khz_ * 1.0e3, ui_pw_tol_us_, ui_doa_tol_deg_);
+            tracker.setTolerances(ui_freq_tol_khz_ * 1.0e3, ui_pw_tol_us_);
         }
 
         if (ImGui::Button("Reset All Tracks##emit_reset")) {
@@ -47,12 +44,11 @@ void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
     ImGui::Text("Active Emitters: %zu", emitters.size());
 
     int tableFlags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_Resizable;
-    if (ImGui::BeginTable("##emitters_table", 9, tableFlags, ImVec2(0, 220))) {
+    if (ImGui::BeginTable("##emitters_table", 8, tableFlags, ImVec2(0, 220))) {
         ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 35.0f);
         ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed, 60.0f);
         ImGui::TableSetupColumn("Freq (MHz)", ImGuiTableColumnFlags_WidthFixed, 85.0f);
         ImGui::TableSetupColumn("PW (us)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
-        ImGui::TableSetupColumn("DOA (deg)", ImGuiTableColumnFlags_WidthFixed, 65.0f);
         ImGui::TableSetupColumn("PRI Pattern", ImGuiTableColumnFlags_WidthFixed, 80.0f);
         ImGui::TableSetupColumn("PRI Mean", ImGuiTableColumnFlags_WidthFixed, 75.0f);
         ImGui::TableSetupColumn("Pulses", ImGuiTableColumnFlags_WidthFixed, 60.0f);
@@ -87,16 +83,8 @@ void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
             ImGui::TableSetColumnIndex(3);
             ImGui::Text("%.2f", e.pulseWidthSeconds * 1.0e6);
 
-            // DOA
-            ImGui::TableSetColumnIndex(4);
-            if (e.hasDoa && e.doaAzimuthDeg >= 0.0f) {
-                ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "%.1f", e.doaAzimuthDeg);
-            } else {
-                ImGui::TextDisabled("--");
-            }
-
             // PRI Pattern
-            ImGui::TableSetColumnIndex(5);
+            ImGui::TableSetColumnIndex(4);
             PRIStats stats;
             bool hasStats = false;
             if (e.priAnalyzer) {
@@ -121,7 +109,7 @@ void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
             }
 
             // PRI Mean
-            ImGui::TableSetColumnIndex(6);
+            ImGui::TableSetColumnIndex(5);
             if (hasStats && stats.meanPri > 0.0) {
                 ImGui::Text("%.1f us", stats.meanPri * 1.0e6);
             } else {
@@ -129,11 +117,11 @@ void EmitterPanel::draw(EmitterTracker& tracker, double sampleRate) {
             }
 
             // Pulses
-            ImGui::TableSetColumnIndex(7);
+            ImGui::TableSetColumnIndex(6);
             ImGui::Text("%llu", (unsigned long long)e.pulseCount);
 
             // Power
-            ImGui::TableSetColumnIndex(8);
+            ImGui::TableSetColumnIndex(7);
             ImGui::Text("%.1f", e.averagePowerDbfs);
         }
 

@@ -13,20 +13,11 @@
 #include "pri/pri_analyzer.h"
 #include "ui/pdw_panel.h"
 #include "ui/histogram_panel.h"
-#include "doa/types.h"
-#include "doa/covariance_accumulator.h"
-#include "doa/music_engine.h"
-#include "doa/array_synthesizer.h"
-#include "doa/coherent_bus.h"
-#include "ui/doa_panel.h"
 #include "ui/scope_panel.h"
 #include "pri/emitter_tracker.h"
 #include "ui/emitter_panel.h"
-#include "beamforming/beamformer.h"
-#include "ui/beamformer_panel.h"
 #include "pdw/power_cal.h"
 #include "export/pdw_binary_exporter.h"
-#include "doa/array_calibration.h"
 #include "vna/vna_analyzer.h"
 #include "ui/vna_panel.h"
 
@@ -50,40 +41,11 @@ public:
         extractor.setCalibrationTable(&powerCalTable);
         priAnalyzer.init(256);
 
-        // Initialize DOA components with 4-element ULA and 256 snapshots
-        covAccumulator.init(4, 256, 0.0f, false);
-        arrayCalibration.setNumChannels(4);
-
         detector.setPulseCallback([this](const rf_tools::RawPulse& rawPulse) {
             double currentCf = gui::waterfall.getCenterFrequency() + (vfo ? vfo->getOffset() : 0.0);
             extractor.setCenterFrequency(currentCf);
 
-            rf_tools::PDW pdw;
-            if (doaEnabled.load()) {
-                size_t M = musicEngine.getConfig().num_elements;
-                size_t Npulse = rawPulse.samples.size();
-                if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
-                    auto synth_pulse = arraySynthesizer.generateSnapshots(Npulse, static_cast<float>(sampleRate));
-                    if (arrayCalibration.isEnabled()) {
-                        arrayCalibration.applyCorrection(synth_pulse.data(), M, Npulse);
-                    }
-                    pdw = extractor.extract(rawPulse, synth_pulse.data(), M, &musicEngine);
-                } else if (coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
-                    std::vector<std::complex<float>> net_pulse;
-                    if (coherentBus.getSnapshots(net_pulse, M, Npulse)) {
-                        if (arrayCalibration.isEnabled()) {
-                            arrayCalibration.applyCorrection(net_pulse.data(), M, Npulse);
-                        }
-                        pdw = extractor.extract(rawPulse, net_pulse.data(), M, &musicEngine);
-                    } else {
-                        pdw = extractor.extract(rawPulse);
-                    }
-                } else {
-                    pdw = extractor.extract(rawPulse);
-                }
-            } else {
-                pdw = extractor.extract(rawPulse);
-            }
+            rf_tools::PDW pdw = extractor.extract(rawPulse);
 
             pdwPanel.addPDW(pdw);
             if (pdwBinExporter.isRecording()) {
@@ -93,9 +55,6 @@ public:
             histogramPanel.addPDW(pdw);
             emitterTracker.processPDW(pdw);
             scopePanel.loadPulse(rawPulse, sampleRate, currentCf);
-            if (pdw.hasDoa) {
-                doaPanel.addPulseHit(pdw.doaAzimuth, pdw.averagePower);
-            }
         });
 
         startWorker();
@@ -217,56 +176,6 @@ private:
 
             detector.process(vfo->output->readBuf, count);
 
-            // Direction Finding (DOA) Processing
-            if (doaEnabled.load()) {
-                auto srcType = coherentBus.getSourceType();
-                size_t M = musicEngine.getConfig().num_elements;
-                size_t K = musicEngine.getConfig().num_snapshots;
-
-                if (srcType == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
-                    auto synth_snapshots = arraySynthesizer.generateSnapshots(K, static_cast<float>(sampleRate));
-                    if (arrayCalibration.isEnabled()) {
-                        arrayCalibration.applyCorrection(synth_snapshots.data(), M, K);
-                    }
-                    covAccumulator.feedSnapshotsInterleaved(synth_snapshots.data(), M, K);
-                } else if (srcType == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
-                    std::vector<std::complex<float>> net_snapshots;
-                    if (coherentBus.getSnapshots(net_snapshots, M, K)) {
-                        if (arrayCalibration.isEnabled()) {
-                            arrayCalibration.applyCorrection(net_snapshots.data(), M, K);
-                        }
-                        covAccumulator.feedSnapshotsInterleaved(net_snapshots.data(), M, K);
-                    }
-                } else {
-                    // Feed single-channel stream to array channel 0
-                    std::vector<std::complex<float>> ch_snap(M, 0.0f);
-                    for (int i = 0; i < count; ++i) {
-                        ch_snap[0] = std::complex<float>(vfo->output->readBuf[i].re, vfo->output->readBuf[i].im);
-                        covAccumulator.feedSnapshot(ch_snap.data(), M);
-                    }
-                }
-
-                Eigen::MatrixXcf Rxx;
-                if (covAccumulator.getNormalizedCovariance(Rxx)) {
-                    rf_tools::doa::DOAResult res = musicEngine.computeDOA(Rxx, K);
-                    doaPanel.updateResult(res);
-                    beamformer.computeWeights(Rxx);
-                }
-
-                // If beamformer audio filtering is enabled, filter multi-channel buffer to demodulator output
-                if (beamformerPanel.isFilterAudioEnabled() && count > 0) {
-                    if (srcType == rf_tools::doa::CoherentSourceType::VIRTUAL_SIMULATOR) {
-                        auto synth_block = arraySynthesizer.generateSnapshots(count, static_cast<float>(sampleRate));
-                        std::vector<std::complex<float>> filtered(count);
-                        beamformer.filterInterleaved(synth_block.data(), count, filtered.data());
-                        for (int i = 0; i < count; ++i) {
-                            vfo->output->readBuf[i].re = filtered[i].real();
-                            vfo->output->readBuf[i].im = filtered[i].imag();
-                        }
-                    }
-                }
-            }
-
             vfo->output->flush();
         }
     }
@@ -305,46 +214,6 @@ private:
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Direction Finding (DOA)")) {
-                bool doa_on = mod->doaEnabled.load();
-                if (ImGui::Checkbox("Enable DOA##rf_doa_on", &doa_on)) {
-                    mod->doaEnabled.store(doa_on);
-                }
-                ImGui::SameLine();
-                const char* src_modes[] = { "Virtual Array Simulator", "Coherent Hardware (UDP)", "Single-VFO Tap" };
-                int current_src = static_cast<int>(mod->coherentBus.getSourceType());
-                ImGui::SetNextItemWidth(180.0f);
-                if (ImGui::Combo("Source##rf_doa_source", &current_src, src_modes, IM_ARRAYSIZE(src_modes))) {
-                    mod->coherentBus.setSourceType(static_cast<rf_tools::doa::CoherentSourceType>(current_src));
-                }
-
-                if (mod->coherentBus.getSourceType() == rf_tools::doa::CoherentSourceType::NETWORK_STREAM) {
-                    bool net_running = mod->coherentBus.isNetworkReceiverRunning();
-                    if (!net_running) {
-                        if (ImGui::Button("Start UDP Receiver (:5000)##rf_udp_start")) {
-                            mod->coherentBus.startNetworkReceiver(5000);
-                        }
-                    } else {
-                        if (ImGui::Button("Stop UDP Receiver##rf_udp_stop")) {
-                            mod->coherentBus.stopNetworkReceiver();
-                        }
-                        ImGui::SameLine();
-                        ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.4f, 1.0f), "UDP :%u | Frames: %llu (Drop: %llu)",
-                            mod->coherentBus.getNetworkPort(),
-                            (unsigned long long)mod->coherentBus.getFramesReceived(),
-                            (unsigned long long)mod->coherentBus.getFramesDropped());
-                    }
-                }
-                ImGui::Spacing();
-                mod->doaPanel.draw(mod->musicEngine, mod->covAccumulator, &mod->arrayCalibration);
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Beamforming")) {
-                mod->beamformerPanel.draw(mod->beamformer, mod->covAccumulator, mod->doaPanel, mod->emitterTracker);
-                ImGui::EndTabItem();
-            }
-
             if (ImGui::BeginTabItem("Emitter Tracking")) {
                 mod->emitterPanel.draw(mod->emitterTracker, mod->detector.getSampleRate());
                 ImGui::EndTabItem();
@@ -379,19 +248,6 @@ private:
     rf_tools::ScopePanel scopePanel;
     rf_tools::PowerCalibrationTable powerCalTable;
     rf_tools::PdwBinaryExporter pdwBinExporter;
-
-    // Direction Finding components
-    rf_tools::doa::CovarianceAccumulator covAccumulator;
-    rf_tools::doa::MUSICEngine musicEngine;
-    rf_tools::doa::ArraySynthesizer arraySynthesizer;
-    rf_tools::doa::CoherentBus coherentBus;
-    rf_tools::doa::ArrayCalibration arrayCalibration;
-    rf_tools::DOAPanel doaPanel;
-    std::atomic<bool> doaEnabled{ true };
-
-    // Adaptive Beamforming components
-    rf_tools::beamforming::AdaptiveBeamformer beamformer;
-    rf_tools::BeamformerPanel beamformerPanel;
 
     // Resonator analysis of an S21 magnitude trace (synthetic sweep only)
     rf_tools::vna::VNAAnalyzer vnaAnalyzer;

@@ -57,7 +57,7 @@ bool SigMFExporter::exportSigMF(const std::string& baseFilePath,
         { "core:description", description },
         { "core:author", author },
         { "core:recorder", "SDR++ rf_tools" },
-        { "core:hw", "SDR++ Multichannel Array / Passive DF Suite" }
+        { "core:hw", "SDR++ rf_tools" }
     };
 
     // 2. Captures section
@@ -85,13 +85,8 @@ bool SigMFExporter::exportSigMF(const std::string& baseFilePath,
             { "rf:avg_power_dbfs", p.averagePower },
             { "rf:snr_db", p.snr },
             { "rf:noise_floor_dbfs", p.noiseFloor },
-            { "rf:pri_s", p.pri },
-            { "rf:has_doa", p.hasDoa }
+            { "rf:pri_s", p.pri }
         };
-
-        if (p.hasDoa) {
-            ann["rf:doa_azimuth_deg"] = p.doaAzimuth;
-        }
 
         annotations.push_back(ann);
     }
@@ -138,13 +133,8 @@ bool SigMFExporter::exportJSON(const std::string& filePath,
             { "average_power_dbfs", e.averagePowerDbfs },
             { "pulse_count", e.pulseCount },
             { "first_seen_toa_s", e.firstSeenToa },
-            { "last_seen_toa_s", e.lastSeenToa },
-            { "has_doa", e.hasDoa }
+            { "last_seen_toa_s", e.lastSeenToa }
         };
-
-        if (e.hasDoa) {
-            item["doa_azimuth_deg"] = e.doaAzimuthDeg;
-        }
 
         if (e.priAnalyzer) {
             PRIStats stats = e.priAnalyzer->getStats();
@@ -175,12 +165,8 @@ bool SigMFExporter::exportJSON(const std::string& filePath,
             { "avg_power_dbfs", p.averagePower },
             { "snr_db", p.snr },
             { "noise_dbfs", p.noiseFloor },
-            { "pri_s", p.pri },
-            { "has_doa", p.hasDoa }
+            { "pri_s", p.pri }
         };
-        if (p.hasDoa) {
-            item["doa_azimuth_deg"] = p.doaAzimuth;
-        }
         pdwArray.push_back(item);
     }
     root["pdws"] = pdwArray;
@@ -206,7 +192,7 @@ bool SigMFExporter::exportCSV(const std::string& filePath,
         return false;
     }
 
-    csv << "PulseIndex,SampleIndex,TOA_s,PW_us,FreqOffset_Hz,AbsoluteFreq_Hz,PeakPwr_dBFS,AvgPwr_dBFS,SNR_dB,Noise_dBFS,PRI_us,DOA_deg\n";
+    csv << "PulseIndex,SampleIndex,TOA_s,PW_us,FreqOffset_Hz,AbsoluteFreq_Hz,PeakPwr_dBFS,AvgPwr_dBFS,SNR_dB,Noise_dBFS,PRI_us\n";
     for (const auto& p : pdws) {
         csv << p.pulseIndex << ","
             << p.sampleIndex << ","
@@ -218,12 +204,7 @@ bool SigMFExporter::exportCSV(const std::string& filePath,
             << std::fixed << std::setprecision(2) << p.averagePower << ","
             << std::fixed << std::setprecision(2) << p.snr << ","
             << std::fixed << std::setprecision(2) << p.noiseFloor << ","
-            << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << ",";
-        if (p.hasDoa) {
-            csv << std::fixed << std::setprecision(1) << p.doaAzimuth << "\n";
-        } else {
-            csv << "NaN\n";
-        }
+            << std::fixed << std::setprecision(3) << (p.pri * 1.0e6) << "\n";
     }
 
     flog::info("Exported {0} PDW entries to CSV: {1}", (uint64_t)pdws.size(), filePath);

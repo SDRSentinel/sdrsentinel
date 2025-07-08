@@ -13,8 +13,6 @@ struct TrackedEmitter {
     uint32_t id = 0;
     double frequencyHz = 0.0;
     double pulseWidthSeconds = 0.0;
-    float doaAzimuthDeg = -1.0f;
-    bool hasDoa = false;
     float averagePowerDbfs = -120.0f;
     uint64_t pulseCount = 0;
     double firstSeenToa = 0.0;
@@ -30,7 +28,7 @@ public:
     EmitterTracker();
     ~EmitterTracker() = default;
 
-    void init(double freqTolHz = 50.0e3, double pwTolUs = 1.5, float doaTolDeg = 15.0f, double timeoutSec = 5.0);
+    void init(double freqTolHz = 50.0e3, double pwTolUs = 1.5, double timeoutSec = 5.0);
     void reset();
 
     // Process a newly extracted PDW and associate with an existing or new emitter track
@@ -39,7 +37,7 @@ public:
     // Get snapshot copy of all tracked emitters
     std::vector<TrackedEmitter> getEmitters() const;
 
-    void setTolerances(double freqTolHz, double pwTolUs, float doaTolDeg);
+    void setTolerances(double freqTolHz, double pwTolUs);
     void setTimeout(double timeoutSec);
 
 private:
@@ -48,7 +46,6 @@ private:
 
     double freqTolHz_ = 50.0e3;
     double pwTolSeconds_ = 1.5e-6;
-    float doaTolDeg_ = 15.0f;
     double timeoutSec_ = 5.0;
 
     uint32_t nextEmitterId_ = 1;
