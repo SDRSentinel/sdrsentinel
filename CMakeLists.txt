@@ -67,6 +67,7 @@ option(OPT_BUILD_RIGCTL_SERVER "Rigctl backend for controlling SDR++ with softwa
 option(OPT_BUILD_SCANNER "Frequency scanner" ON)
 option(OPT_BUILD_SCHEDULER "Build the scheduler" ON)
 option(OPT_BUILD_RF_TOOLS "Build the RF Tools analysis suite" ON)
+option(OPT_BUILD_KRAKEN_DOA "Direction finding with a KrakenSDR (Heimdall DAQ client)" ON)
 
 # Other options
 option(USE_INTERNAL_LIBCORRECT "Use an internal version of libcorrect" ON)
@@ -337,6 +338,10 @@ endif (OPT_BUILD_SCHEDULER)
 if (OPT_BUILD_RF_TOOLS)
 add_subdirectory("misc_modules/rf_tools")
 endif (OPT_BUILD_RF_TOOLS)
+
+if (OPT_BUILD_KRAKEN_DOA)
+add_subdirectory("misc_modules/kraken_doa")
+endif (OPT_BUILD_KRAKEN_DOA)
 
 if (MSVC)
     add_executable(sdrpp "src/main.cpp" "win32/resources.rc")
