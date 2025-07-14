@@ -20,7 +20,9 @@ namespace kraken_doa::heimdall {
         std::vector<std::complex<float>> samples;
     };
 
-    enum class ConnState { Disconnected, Connecting, Streaming, Error };
+    // AwaitingFrame: TCP connected and request sent, but no valid Heimdall header received yet.
+    // Only a parsed header proves the peer is a Heimdall IQ server.
+    enum class ConnState { Disconnected, Connecting, AwaitingFrame, Streaming, Error };
 
     struct IqStats {
         ConnState state = ConnState::Disconnected;
@@ -42,6 +44,7 @@ namespace kraken_doa::heimdall {
             std::string host = "127.0.0.1";
             int port = 5000;
             int connectTimeoutMs = 3000;
+            int firstFrameTimeoutMs = 10000; // no valid header within this time after connecting is an error
             int rcvBufBytes = 32 * 1024 * 1024;
             uint64_t maxPayloadBytes = DEFAULT_MAX_PAYLOAD_BYTES;
             bool autoReconnect = false;

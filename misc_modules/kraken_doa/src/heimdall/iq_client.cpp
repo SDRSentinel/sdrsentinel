@@ -101,14 +101,30 @@ namespace kraken_doa::heimdall {
         }
 
         if (!tcp::sendAll(s, "streaming", 9)) { return finish(ConnState::Error, "failed to send streaming request"); }
-        setState(ConnState::Streaming);
+        setState(ConnState::AwaitingFrame);
+        tcp::setRecvTimeout(s, cfg.firstFrameTimeoutMs);
 
         uint8_t hdr[HEADER_SIZE];
+        bool gotHeader = false;
         while (!stopFlag) {
-            if (!tcp::recvExact(s, hdr, HEADER_SIZE)) { return finish(ConnState::Error, "connection lost while reading header"); }
+            bool timedOut = false;
+            if (!tcp::recvExact(s, hdr, HEADER_SIZE, &timedOut)) {
+                if (timedOut && !gotHeader) {
+                    return finish(ConnState::Error, "no Heimdall frame within " + std::to_string(cfg.firstFrameTimeoutMs / 1000) +
+                                                        " s; is this the DAQ IQ server? (on macOS port 5000 is taken by AirPlay Receiver)");
+                }
+                return finish(ConnState::Error, "connection lost while reading header");
+            }
             std::string perr;
             if (!parseHeader(hdr, HEADER_SIZE, work.header, &perr, cfg.maxPayloadBytes)) {
+                if (!gotHeader) { return finish(ConnState::Error, "peer is not a Heimdall IQ server (" + perr + ")"); }
                 return finish(ConnState::Error, "header error: " + perr);
+            }
+            if (!gotHeader) {
+                gotHeader = true;
+                // Large CPIs can take long on slow links, so no read timeout once the peer is known
+                tcp::setRecvTimeout(s, 0);
+                setState(ConnState::Streaming);
             }
             uint64_t payload = work.header.payloadBytes();
             size_t nSamples = (size_t)work.header.cpiLength * work.header.activeAntChs;

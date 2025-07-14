@@ -57,7 +57,7 @@ DUMMY frames have `cpi_length` 0 and no payload. CAL frames (noise source on) ar
 
 Complex float32 (I then Q, little-endian), channel-major: all `cpi_length` samples of channel 0, then channel 1, and so on (`fir_decimate.c`, reference client `reshape(active_ant_chs, cpi_length)`). Values are scaled to about [-1, 1). Phase and amplitude alignment is already applied by the DAQ (`delay_sync.py`), so the client uses the samples as they are.
 
-Default configuration (`Firmware/daq_chain_config.ini`): 5 channels, 2.4 MS/s, `cpi_size` 1048576, `decimation_ratio` 1. That is about 42 MB per frame and 1.2 Gbit/s; use wired gigabit Ethernet or raise the decimation.
+Default configuration (`Firmware/daq_chain_config.ini`): 5 channels, 2.4 MS/s, `cpi_size` 1048576, `decimation_ratio` 1. That is about 42 MB per frame and 768 Mbit/s (2.4 MS/s x 5 channels x 8 bytes); use wired gigabit Ethernet or raise the decimation.
 
 ## 2. Control, TCP port 5001
 

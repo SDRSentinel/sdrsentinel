@@ -308,12 +308,63 @@ static void testIqClient() {
         IqClient::Config cfg;
         cfg.port = port;
         c.start(cfg);
-        CHECK(waitFor([&] { return c.state() == ConnState::Streaming; }, 5000));
+        CHECK(waitFor([&] { return c.state() == ConnState::AwaitingFrame; }, 5000));
         std::this_thread::sleep_for(50ms);
         auto t0 = std::chrono::steady_clock::now();
         c.stop();
         CHECK(std::chrono::steady_clock::now() - t0 < 2s);
         CHECK(c.state() == ConnState::Disconnected);
+        t.join();
+        close(l);
+    }
+    // ---- a TCP peer that accepts but never sends a frame is reported, not shown as streaming
+    {
+        int port;
+        int l = listenEphemeral(port);
+        std::thread t([&] {
+            int fd = accept(l, nullptr, nullptr);
+            char b[16];
+            readN(fd, b, 9);
+            char c;
+            readN(fd, &c, 1); // EOF when the client gives up
+            close(fd);
+        });
+        IqClient c;
+        IqClient::Config cfg;
+        cfg.port = port;
+        cfg.firstFrameTimeoutMs = 500;
+        c.start(cfg);
+        CHECK(waitFor([&] { return c.state() == ConnState::Error; }, 5000));
+        CHECK(c.stats().errorMessage.find("no Heimdall frame") != std::string::npos);
+        c.stop();
+        t.join();
+        close(l);
+    }
+
+    // ---- a peer that answers with something else (e.g. an HTTP server on port 5000)
+    {
+        int port;
+        int l = listenEphemeral(port);
+        std::thread t([&] {
+            int fd = accept(l, nullptr, nullptr);
+            char b[16];
+            readN(fd, b, 9);
+            std::vector<char> resp(1024, ' ');
+            const char* http = "HTTP/1.1 403 Forbidden\r\nServer: AirTunes\r\n\r\n";
+            std::memcpy(resp.data(), http, std::strlen(http));
+            send(fd, resp.data(), resp.size(), 0);
+            char c;
+            readN(fd, &c, 1);
+            close(fd);
+        });
+        IqClient c;
+        IqClient::Config cfg;
+        cfg.port = port;
+        c.start(cfg);
+        CHECK(waitFor([&] { return c.state() == ConnState::Error; }, 5000));
+        CHECK(c.stats().errorMessage.find("not a Heimdall IQ server") != std::string::npos);
+        CHECK(c.stats().framesReceived == 0);
+        c.stop();
         t.join();
         close(l);
     }
