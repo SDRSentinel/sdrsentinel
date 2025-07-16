@@ -26,3 +26,4 @@ endif()
 # Test targets, one file per component
 include(tests/heimdall_tests.cmake OPTIONAL)
 include(tests/dsp_tests.cmake OPTIONAL)
+include(tests/pipeline_tests.cmake OPTIONAL)

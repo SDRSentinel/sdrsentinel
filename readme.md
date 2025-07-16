@@ -334,6 +334,9 @@ Other module changes:
   - I added a feature to colorize the frequency list based on the frequency.
   - I added right click menu to the frequency list to add a new frequency.
 
+* In kraken_doa (`misc_modules/kraken_doa`):
+  - Direction finding (Bartlett, Capon, MUSIC; circular or linear array) from a KrakenSDR through its Heimdall DAQ over TCP. Shows only real, synchronized frames; see the module README. Not yet validated on real hardware.
+
 * In rf_tools (`misc_modules/rf_tools`):
   - Radar / EW analysis suite: B210 calibration data and HDF5 layout from `gr-pdw` (see the module README for credits and licenses).
   - Real-time pulse detection (noise margin threshold with hysteresis) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
@@ -411,6 +414,7 @@ Modules in beta are still included in releases for the most part but not enabled
 | discord_integration | Working    | -            | OPT_BUILD_DISCORD_PRESENCE  | ✅              | ✅               | ⛔                         |
 | frequency_manager   | Working    | -            | OPT_BUILD_FREQUENCY_MANAGER | ✅              | ✅               | ✅                         |
 | iq_exporter         | Working    | -            | OPT_BUILD_IQ_EXPORTER       | ✅              | ✅               | ⛔                         |
+| kraken_doa          | Beta       | eigen3       | OPT_BUILD_KRAKEN_DOA        | ✅              | ✅               | ⛔                         |
 | recorder            | Working    | -            | OPT_BUILD_RECORDER          | ✅              | ✅               | ✅                         |
 | rf_tools            | Working    | fftw3f         | OPT_BUILD_RF_TOOLS        | ✅              | ✅               | ⛔                         |
 | rigctl_client       | Unfinished | -            | OPT_BUILD_RIGCTL_CLIENT     | ✅              | ✅               | ⛔                         |
