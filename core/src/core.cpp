@@ -162,6 +162,15 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["menuElements"][7]["name"] = "Display";
     defConfig["menuElements"][7]["open"] = true;
 
+    // Analysis modules start docked in the menu, collapsed
+    defConfig["menuElements"][8]["name"] = "RF Tools";
+    defConfig["menuElements"][8]["open"] = false;
+    defConfig["menuElements"][8]["detached"] = false;
+
+    defConfig["menuElements"][9]["name"] = "KrakenSDR DOA";
+    defConfig["menuElements"][9]["open"] = false;
+    defConfig["menuElements"][9]["detached"] = false;
+
     defConfig["menuWidth"] = 300;
     defConfig["min"] = -120.0;
 
@@ -219,6 +228,7 @@ int sdrpp_main(int argc, char* argv[]) {
     defConfig["moduleInstances"]["Frequency Manager"] = "frequency_manager";
     defConfig["moduleInstances"]["Recorder"] = "recorder";
     defConfig["moduleInstances"]["RF Tools"] = "rf_tools";
+    defConfig["moduleInstances"]["KrakenSDR DOA"] = "kraken_doa";
     defConfig["moduleInstances"]["Rigctl Server"] = "rigctl_server";
     // defConfig["moduleInstances"]["Rigctl Client"] = "rigctl_client";
     // TODO: Enable rigctl_client when ready
