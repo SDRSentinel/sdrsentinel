@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <cstring>
 #include <utils/flog.h>
+#include <core.h>
 
 namespace rf_tools {
     PDWPanel::PDWPanel() {}
@@ -90,9 +91,23 @@ namespace rf_tools {
 
         // Hardware Power Calibration (gr-pdw dBm standard)
         if (calTable && ImGui::CollapsingHeader("Hardware Power Calibration (gr-pdw)##pdw_cal_hdr")) {
+            ImGui::PushTextWrapPos(0.0f);
+            ImGui::TextDisabled("The built-in table is valid only for an Ettus USRP B210 (GTRI measurements from gr-pdw). "
+                                "With any other receiver the dBm values are wrong; load a table measured for your receiver.");
+            ImGui::PopTextWrapPos();
+
             bool calEnabled = calTable->isEnabled();
             if (ImGui::Checkbox("Enable dBm Calibration##pdw_cal_en", &calEnabled)) {
                 calTable->setEnabled(calEnabled);
+            }
+
+            core::configManager.acquire();
+            std::string sourceName = core::configManager.conf.contains("source") ? core::configManager.conf["source"].get<std::string>() : "";
+            core::configManager.release();
+            if (calEnabled && sourceName != "USRP" && calTable->getCalibrationName() == PowerCalibrationTable::DEFAULT_B210_NAME) {
+                ImGui::PushTextWrapPos(0.0f);
+                ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.3f, 1.0f), "The selected source is '%s', not a USRP: the B210 table does not apply, dBm values are not valid.", sourceName.c_str());
+                ImGui::PopTextWrapPos();
             }
 
             if (calEnabled) {

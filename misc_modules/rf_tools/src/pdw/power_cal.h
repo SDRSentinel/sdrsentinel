@@ -51,6 +51,9 @@ public:
     static constexpr double B210_MIN_OFFICIAL_FREQ_HZ = 70.0e6;
     static constexpr double B210_MAX_OFFICIAL_FREQ_HZ = 6.0e9;
 
+    // Name of the built-in table; it applies only to an Ettus USRP B210
+    static constexpr const char* DEFAULT_B210_NAME = "USRP B210 (GTRI gr-pdw)";
+
     bool isFrequencyInOfficialHardwareRange(double freqHz) const {
         return freqHz >= B210_MIN_OFFICIAL_FREQ_HZ && freqHz <= B210_MAX_OFFICIAL_FREQ_HZ;
     }

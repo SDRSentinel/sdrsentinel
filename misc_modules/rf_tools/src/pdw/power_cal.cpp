@@ -108,7 +108,7 @@ void PowerCalibrationTable::loadDefaultB210() {
     for (unsigned i = 0; i < kB210CalChunkCount; ++i) {
         text += kB210CalChunks[i];
     }
-    if (!parseTables(text, "USRP B210 (GTRI gr-pdw)", false)) {
+    if (!parseTables(text, DEFAULT_B210_NAME, false)) {
         flog::error("PowerCalibrationTable: could not load the embedded GTRI B210 table, power calibration disabled");
         std::lock_guard<std::mutex> lock(_mutex);
         _tables.clear();

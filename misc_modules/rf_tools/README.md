@@ -17,7 +17,7 @@ SDR++ Core VFO Stream [IQ @ Fs]
       │         │
       │         ▼
       │   [PulseExtractor] ──────> TOA (Coarse/Fine), PW, Pk/Avg Power, SNR, Freq Offset
-      │         │                  └── PowerCalibrationTable (USRP B210 GTRI data)
+      │         │                  └── PowerCalibrationTable (USRP B210 GTRI data, B210 only)
       │         ├──> [PdwBinaryExporter] ──> High-speed .pdwbin recording (own binary format)
       │         │                             └── tools/read_sdrpp_pdw.py ──> HDF5 (.h5)
       │         ├──> [PRIAnalyzer] ────────> Histogram, Stagger, Jitter & PRI Agility
@@ -51,6 +51,7 @@ SDR++ Core VFO Stream [IQ @ Fs]
   * Peak and average power (dBFS and calibrated dBm), noise floor, and SNR.
 * **USRP B210 Power Calibration:**
   * GTRI B210 calibration data (from `b210_pdw.pickle` of gr-pdw, stored in `src/pdw/b210_cal.json`) mapping hardware gain ($0 - 80\text{ dB}$) and frequency ($70\text{ MHz} - 6.0\text{ GHz}$) to $0\text{ dBFS}$ reference level in $\text{dBm}$.
+  * **Valid only for an Ettus USRP B210.** The table was measured by GTRI on B210 hardware. With any other receiver (RTL-SDR, HackRF, Airspy, other USRP models) the dBm values it produces are wrong; use dBFS, or load a table measured for your own receiver with "Load JSON...". The panel says this permanently and shows a red warning when calibration is enabled with the default table while the selected SDR++ source is not "USRP". Even on a B210, individual units differ from the GTRI unit, so treat the values as approximate.
   * Enforces official Analog Devices AD9361 RFIC frequency specifications with automated out-of-range warnings for legacy $50-70\text{ MHz}$ data.
 * **Streaming Exporter:**
   * Binary serialization (`.pdwbin`) with a fixed 81-byte header and 102-byte pulse records.
