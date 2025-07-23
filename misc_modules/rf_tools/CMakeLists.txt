@@ -52,3 +52,15 @@ target_include_directories(test_rf_tools_pulse_detector PRIVATE "src/")
 target_compile_features(test_rf_tools_pulse_detector PRIVATE cxx_std_17)
 set_target_properties(test_rf_tools_pulse_detector PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 target_link_libraries(test_rf_tools_pulse_detector PRIVATE sdrpp_core)
+
+# Standalone resonator import / scalar sweep test executable
+add_executable(test_rf_tools_resonator
+    tests/test_resonator.cpp
+    src/vna/vna_analyzer.cpp
+    src/vna/trace_import.cpp
+    src/vna/scalar_sweep.cpp
+)
+target_include_directories(test_rf_tools_resonator PRIVATE "src/")
+target_compile_features(test_rf_tools_resonator PRIVATE cxx_std_17)
+set_target_properties(test_rf_tools_resonator PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+target_link_libraries(test_rf_tools_resonator PRIVATE sdrpp_core)

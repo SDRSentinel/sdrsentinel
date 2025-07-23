@@ -32,7 +32,7 @@ SDR++ Core VFO Stream [IQ @ Fs]
       │         │                                 ├── Sidelobe Windowing (Hamming/Hann)
       │         │                                 └── Live Compressed Envelope Visualizer
       │
-      └──> [VNAAnalyzer] ───────────> S21 magnitude trace (synthetic sweep only)
+      └──> [VNAAnalyzer] ───────────> S21 magnitude trace (.s2p/.csv import or scalar sweep)
                                               ├── Resonator dip/peak width from |S21| in dB
                                               ├── Loaded Q (Q_L), Internal Q (Q_i), Coupling Q (Q_c)
                                               └── VNAPanel Live Transmission Readout
@@ -81,14 +81,26 @@ SDR++ Core VFO Stream [IQ @ Fs]
     * Manual / Force Slope mode allowing real-time parameter tweaking for unknown or low-SNR chirps.
 
 ### 3. Resonator Analysis of an S21 Magnitude Trace (`VNAAnalyzer`)
-* There is no hardware sweep path: the trace comes from a synthetic generator (`generateSyntheticResonatorSweep`) or `setFullTrace`. This is not a port of GPU_SDR, whose resonator fit is a complex nonlinear least-squares fit.
+* The module holds no simulated data: the page is empty until a trace is loaded from a file or measured. This is not a port of GPU_SDR, whose resonator fit is a complex nonlinear least-squares fit.
+* **Input path A, file import from a real VNA:** type a path in the panel and press Load.
+  * Touchstone `.s2p` (v1): option line `# <Hz|kHz|MHz|GHz> S <RI|MA|DB> R <z>`, `!` comments, records wrapped over several lines. S21 is the second pair of each record (order S11 S21 S12 S22) and is converted to dB and degrees. Touchstone 2.0 keywords and noise-parameter blocks are rejected.
+  * CSV with columns `freq_hz, s21_db[, phase_deg]` (comma, semicolon, tab or space separated, header optional, frequency in Hz).
+  * `.s1p` is rejected with a message: it is reflection (S11), not transmission. Any parse error is shown in the panel and nothing else is loaded in its place.
+* **Input path B, scalar |S21| sweep with the SDR++ receiver and an external broadband source** (noise source or tracking generator; works with RX-only SDRs such as an RTL-SDR). The SDR++ source must be running.
+  1. Connect the source to the receiver through the cable without the DUT and press **Measure thru**. The reference power per point is stored with a timestamp.
+  2. Insert the DUT and press **Measure DUT**: $S_{21} = P_\text{dut} - P_\text{thru}$ in dB per point, phase not measured.
+  3. Optional: with the source off press **Measure noise floor**. The panel then shows the dynamic range per point and flags points whose DUT reading is within 3 dB of the floor; those points are drawn marked and excluded from the fit.
+  * How it measures: the sweep creates its own narrow VFO (RBW, default 10 kHz) at an offset (default +250 kHz) from the receiver center, to keep the DC spike and LO leakage out of the VFO. For each point the center is retuned so the VFO lands on the target frequency, samples are discarded for the settle time (default 50 ms), then $|x|^2$ is averaged over the dwell time (default 20 ms). The center frequency is restored at the end and the sweep VFO is deleted. The PDW detector VFO is not used, but while the center moves the other VFOs follow it in absolute frequency.
+  * The thru and noise reference are discarded when start, stop, points, RBW or offset change. Receiver gain must not change between the thru and DUT sweeps and AGC must be off.
+  * Limits: magnitude only (no phase, so no complex fit). Accuracy is limited by receiver linearity, gain stability, the RBW (a notch narrower than the RBW is smeared) and the flatness of the source. The sweep is slow: the panel shows the estimate, points x (settle + dwell) plus retune overhead, and refuses sweeps above 10 minutes. Settle must exceed the retune and stream latency of the source, otherwise samples from the previous point leak in; this has not been checked against real hardware.
+* The current trace can be exported with **Export CSV** (`freq_hz, s21_db, phase_deg`, empty phase when not measured). The panel shows where the trace came from (file name and load time, or sweep time and settings) next to the fit.
 * **Width-based resonator estimate:**
-  * The generator uses the canonical Lorentzian notch model:
+  * The canonical Lorentzian notch model:
     $$S_{21}(f) = 1 - \frac{Q_L / Q_c}{1 + 2 j Q_L \frac{f - f_0}{f_0}}, \quad \frac{1}{Q_L} = \frac{1}{Q_i} + \frac{1}{Q_c}$$
   * Minimum transmission magnitude: $|S_{21}(f_0)| = \frac{Q_L}{Q_i} = 10^{-\text{depth}/20}$.
   * The analyzer reads only $|S_{21}|$ in dB (phase, cable delay, asymmetry and nonlinearity are ignored). It finds the half-power width at:
     $$P_{\text{target}} = \frac{P_{\text{baseline}} + P_{\min}}{2}$$
-  * From the width and the dip depth it computes $Q_L = f_0 / \text{BW}$, $Q_i = Q_L / S_{21,\min}$ and $Q_c = Q_L / (1 - S_{21,\min})$. On the synthetic notch in the test these are within $2\%$ of the generating values (the generator and the analyzer use the same model, so this checks self-consistency only).
+  * From the width and the dip depth it computes $Q_L = f_0 / \text{BW}$, $Q_i = Q_L / S_{21,\min}$ and $Q_c = Q_L / (1 - S_{21,\min})$. In the test, on a Lorentzian notch generated by the test itself, these are within $2\%$ of the generating values (the generator and the analyzer use the same model, so this checks self-consistency only).
 
 ---
 
@@ -103,7 +115,8 @@ The module includes comprehensive automated C++ and Python verification test sui
 | **Chirp AWGN gain** | same | **PASS** | In-band gain within 1.5 dB of $10\log_{10}(BT) = 19.03\text{ dB}$ at 0 and -6 dB input SNR |
 | **Chirp windowing** | same | **PASS** | Unwindowed PSLR $< -12.5\text{ dB}$, Hamming PSLR $< -28\text{ dB}$ |
 | **Chirp Doppler** | same | **PASS** | +50 kHz offset: compression ratio $> 40\times$ and PSLR within 3 dB of the zero-Doppler value (peak loss is not measured, the envelope is normalized) |
-| **Resonator Q analysis** | same | **PASS** | $f_0$ within 1 kHz, $Q_L$, $Q_i$, $Q_c$ within 2% of the synthetic generator's parameters |
+| **Resonator Q analysis** | same | **PASS** | $f_0$ within 1 kHz, $Q_L$, $Q_i$, $Q_c$ within 2% of the parameters of a test-generated Lorentzian notch |
+| **Resonator import and scalar sweep** | `./build/misc_modules/rf_tools/test_rf_tools_resonator` | **PASS** | Touchstone RI/MA/DB and units against hand-computed S21, wrapped records, `.s1p` rejection, CSV; scalar sweep logic against a fake receiver (normalization, reference invalidation, noise-floor flagging, cancel, $f_0$ within one point spacing). Not run against a real source |
 | **Pulse detector** | `./build/misc_modules/rf_tools/test_rf_tools_pulse_detector` | **PASS** | Pulse widths and noise estimate on synthetic pulses |
 | **Python HDF5 round trip** | `uv run --no-project --with numpy --with h5py python misc_modules/rf_tools/tests/test_pdw_roundtrip.py` | **PASS** | C++ `.pdwbin` converted to HDF5 and read back; values equal the C++ input |
 | **CPU throughput** | `./build/misc_modules/rf_tools/test_root_dev_integration` | **PASS** | Loose lower bounds only (matched filter $> 5000$ pulses/s) |

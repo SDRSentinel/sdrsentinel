@@ -20,6 +20,7 @@
 #include "export/pdw_binary_exporter.h"
 #include "vna/vna_analyzer.h"
 #include "ui/vna_panel.h"
+#include "vna/sdrpp_probe.h"
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
@@ -56,6 +57,13 @@ public:
             emitterTracker.processPDW(pdw);
             scopePanel.loadPulse(rawPulse, sampleRate, currentCf);
         });
+
+        rf_tools::VNAPanel::Host vnaHost;
+        vnaHost.sourceRunning = []() { return gui::mainWindow.isPlaying(); };
+        vnaHost.makeProbe = [this](const rf_tools::vna::ScalarSweepSettings& s, std::string& err) -> std::unique_ptr<rf_tools::vna::ScalarProbe> {
+            return rf_tools::vna::SdrppScalarProbe::create(this->name, s, err);
+        };
+        vnaPanel.setHost(vnaHost);
 
         startWorker();
         gui::menu.registerEntry(name, menuHandler, this, this);
@@ -249,7 +257,7 @@ private:
     rf_tools::PowerCalibrationTable powerCalTable;
     rf_tools::PdwBinaryExporter pdwBinExporter;
 
-    // Resonator analysis of an S21 magnitude trace (synthetic sweep only)
+    // Resonator analysis of an S21 magnitude trace (file import or scalar sweep)
     rf_tools::vna::VNAAnalyzer vnaAnalyzer;
     rf_tools::VNAPanel vnaPanel;
 

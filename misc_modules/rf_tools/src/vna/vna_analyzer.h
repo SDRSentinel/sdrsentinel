@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include <cmath>
 
 namespace rf_tools {
 namespace vna {
@@ -9,7 +10,9 @@ namespace vna {
 struct VNASweepPoint {
     double freqHz = 0.0;
     float magnitudeDb = -100.0f;
-    float phaseDeg = 0.0f;
+    float phaseDeg = 0.0f;       // NaN when the phase was not measured (scalar sweep)
+    bool valid = true;           // false: unreliable point (e.g. near the noise floor), excluded from the fit
+    float dynRangeDb = NAN;      // thru - noise floor at this point, NaN when no noise floor was measured
 };
 
 struct ResonatorDipFit {
@@ -33,7 +36,7 @@ struct VNASweepConfig {
 
 class VNAAnalyzer {
 public:
-    VNAAnalyzer();
+    VNAAnalyzer() = default;
     ~VNAAnalyzer() = default;
 
     void setConfig(const VNASweepConfig& config);
@@ -43,22 +46,24 @@ public:
     void addPoint(double freqHz, float magnitudeDb, float phaseDeg);
     void setFullTrace(const std::vector<VNASweepPoint>& trace);
 
+    // Where the trace came from (file name and time, or sweep settings), shown next to the fit
+    void setTraceSource(const std::string& source);
+    std::string getTraceSource() const;
+
     std::vector<VNASweepPoint> getTrace() const;
     ResonatorDipFit getDipFit() const;
 
     // Resonator dip / transmission peak estimate from |S21| in dB only (phase, cable delay, asymmetry and
-    // nonlinearity are ignored): -3 dB style width gives Q_L, then Q_i and Q_c are derived from the dip depth.
+    // nonlinearity are ignored). Points with valid == false or a non-finite magnitude are skipped: -3 dB style width gives Q_L, then Q_i and Q_c are derived from the dip depth.
     // This is not a complex S21 fit.
     ResonatorDipFit fitResonance(const std::vector<VNASweepPoint>& trace, bool findDip = true) const;
-
-    // Synthetic sweep generator; there is no hardware sweep path
-    void generateSyntheticResonatorSweep(double f0 = 100.0e6, double q = 2500.0, float depthDb = 25.0f);
 
 private:
     mutable std::mutex mutex_;
     VNASweepConfig config_;
     std::vector<VNASweepPoint> trace_;
     ResonatorDipFit latestFit_;
+    std::string traceSource_;
 };
 
 } // namespace vna

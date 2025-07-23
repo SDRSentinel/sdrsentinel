@@ -1,15 +1,10 @@
 #include "vna_analyzer.h"
 #include <cmath>
-#include <complex>
 #include <algorithm>
 #include <numeric>
 
 namespace rf_tools {
 namespace vna {
-
-VNAAnalyzer::VNAAnalyzer() {
-    generateSyntheticResonatorSweep();
-}
 
 void VNAAnalyzer::setConfig(const VNASweepConfig& config) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -25,6 +20,17 @@ void VNAAnalyzer::clearTrace() {
     std::lock_guard<std::mutex> lock(mutex_);
     trace_.clear();
     latestFit_ = ResonatorDipFit{};
+    traceSource_.clear();
+}
+
+void VNAAnalyzer::setTraceSource(const std::string& source) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    traceSource_ = source;
+}
+
+std::string VNAAnalyzer::getTraceSource() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return traceSource_;
 }
 
 void VNAAnalyzer::addPoint(double freqHz, float magnitudeDb, float phaseDeg) {
@@ -51,8 +57,14 @@ ResonatorDipFit VNAAnalyzer::getDipFit() const {
     return latestFit_;
 }
 
-ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& trace, bool findDip) const {
+ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& fullTrace, bool findDip) const {
     ResonatorDipFit fit;
+
+    std::vector<VNASweepPoint> trace;
+    trace.reserve(fullTrace.size());
+    for (const auto& pt : fullTrace) {
+        if (pt.valid && std::isfinite(pt.magnitudeDb)) { trace.push_back(pt); }
+    }
     if (trace.size() < 7) return fit;
 
     // Estimate baseline from the outer 10% edges
@@ -153,36 +165,6 @@ ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& trac
     }
 
     return fit;
-}
-
-void VNAAnalyzer::generateSyntheticResonatorSweep(double f0, double q, float depthDb) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    trace_.clear();
-
-    double bw = f0 / q;
-    double span = bw * 8.0;
-    config_.startFreqHz = f0 - span * 0.5;
-    config_.stopFreqHz = f0 + span * 0.5;
-    config_.numPoints = 201;
-
-    double df = (config_.stopFreqHz - config_.startFreqHz) / (config_.numPoints - 1);
-    float s21_min_lin = std::pow(10.0f, -depthDb / 20.0f);
-
-    for (size_t i = 0; i < config_.numPoints; ++i) {
-        double f = config_.startFreqHz + i * df;
-        double deltaF = (f - f0) / (0.5 * bw);
-
-        // Lorentzian S21 resonance response: S21(f) = 1 - (1 - S21_min) / (1 + j * 2 * Q * (f - f0) / f0)
-        std::complex<double> denom(1.0, deltaF);
-        std::complex<double> s21 = 1.0 - (1.0 - s21_min_lin) / denom;
-
-        float magDb = static_cast<float>(20.0 * std::log10(std::abs(s21)));
-        float phaseDeg = static_cast<float>(std::arg(s21) * 180.0 / M_PI);
-
-        trace_.push_back({ f, magDb, phaseDeg });
-    }
-
-    latestFit_ = fitResonance(trace_, true);
 }
 
 } // namespace vna

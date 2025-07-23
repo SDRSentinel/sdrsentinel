@@ -24,6 +24,29 @@
         } \
     } while (0)
 
+// Test-only Lorentzian notch generator (the module itself has no synthetic data):
+// S21(f) = 1 - (1 - S21_min) / (1 + j * 2 * Q * (f - f0) / f0), 201 points over 8 bandwidths
+static std::vector<rf_tools::vna::VNASweepPoint> makeLorentzianNotch(double f0, double q, float depthDb) {
+    std::vector<rf_tools::vna::VNASweepPoint> trace;
+    double bw = f0 / q;
+    double span = bw * 8.0;
+    double start = f0 - span * 0.5;
+    const size_t n = 201;
+    double df = span / (n - 1);
+    float s21MinLin = std::pow(10.0f, -depthDb / 20.0f);
+    for (size_t i = 0; i < n; ++i) {
+        double f = start + i * df;
+        double deltaF = (f - f0) / (0.5 * bw);
+        std::complex<double> s21 = 1.0 - (1.0 - s21MinLin) / std::complex<double>(1.0, deltaF);
+        rf_tools::vna::VNASweepPoint pt;
+        pt.freqHz = f;
+        pt.magnitudeDb = static_cast<float>(20.0 * std::log10(std::abs(s21)));
+        pt.phaseDeg = static_cast<float>(std::arg(s21) * 180.0 / M_PI);
+        trace.push_back(pt);
+    }
+    return trace;
+}
+
 int main() {
     flog::logLevel = flog::TYPE_WARNING;
     std::cout << "============================================================\n";
@@ -272,7 +295,7 @@ int main() {
     }
 
     // ------------------------------------------------------------------------
-    // TEST 4: Resonator S21 magnitude analysis on a synthetic sweep (self-consistency)
+    // TEST 4: Resonator S21 magnitude analysis on a test-generated notch (self-consistency)
     // ------------------------------------------------------------------------
     std::cout << "[TEST] 4. Resonator S21 magnitude analysis (Q_L, Q_i, Q_c on a synthetic Lorentzian notch)...\n";
     {
@@ -290,7 +313,7 @@ int main() {
         double expectedQi = trueQ / std::pow(10.0, -trueDepthDb / 20.0);
         double expectedQc = trueQ / (1.0 - std::pow(10.0, -trueDepthDb / 20.0));
 
-        vna.generateSyntheticResonatorSweep(trueF0, trueQ, trueDepthDb);
+        vna.setFullTrace(makeLorentzianNotch(trueF0, trueQ, trueDepthDb));
         auto fit = vna.getDipFit();
 
         TEST_CHECK(fit.valid, "Resonator fit must be valid");
