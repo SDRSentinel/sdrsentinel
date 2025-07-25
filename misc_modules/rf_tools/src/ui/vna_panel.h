@@ -25,7 +25,7 @@ public:
 private:
     void drawImport(vna::VNAAnalyzer& analyzer);
     void drawScalarSweep(vna::VNAAnalyzer& analyzer);
-    void drawMagnitudePlot(const std::vector<vna::VNASweepPoint>& trace, const vna::ResonatorDipFit& fit);
+    void drawMagnitudePlot(const std::vector<vna::VNASweepPoint>& trace, const vna::ResonatorDipFit& fit, bool validated);
     void drawPhasePlot(const std::vector<vna::VNASweepPoint>& trace);
     vna::ScalarSweepSettings sweepSettings() const;
     void startSweep(vna::SweepStage stage);

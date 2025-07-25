@@ -2,6 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <cstdio>
 
 namespace rf_tools {
 namespace vna {
@@ -21,11 +22,18 @@ void VNAAnalyzer::clearTrace() {
     trace_.clear();
     latestFit_ = ResonatorDipFit{};
     traceSource_.clear();
+    traceOrigin_ = TraceOrigin::None;
 }
 
-void VNAAnalyzer::setTraceSource(const std::string& source) {
+void VNAAnalyzer::setTraceSource(const std::string& source, TraceOrigin origin) {
     std::lock_guard<std::mutex> lock(mutex_);
     traceSource_ = source;
+    traceOrigin_ = origin;
+}
+
+TraceOrigin VNAAnalyzer::getTraceOrigin() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return traceOrigin_;
 }
 
 std::string VNAAnalyzer::getTraceSource() const {
@@ -165,6 +173,67 @@ ResonatorDipFit VNAAnalyzer::fitResonance(const std::vector<VNASweepPoint>& full
     }
 
     return fit;
+}
+
+FitValidation validateFit(const std::vector<VNASweepPoint>& trace, const ResonatorDipFit& fit, TraceOrigin origin) {
+    FitValidation v;
+    char buf[256];
+    if (!fit.valid) {
+        v.reason = "no fit";
+        return v;
+    }
+    if (origin == TraceOrigin::None) {
+        v.reason = "unknown trace origin";
+        return v;
+    }
+
+    float minDr = INFINITY;
+    if (origin == TraceOrigin::ScalarSweep) {
+        // Without a noise floor, signals that change between the thru and DUT sweeps can look like a dip
+        const VNASweepPoint* atF0 = nullptr;
+        for (const auto& pt : trace) {
+            if (!pt.valid || !std::isfinite(pt.dynRangeDb)) { continue; }
+            minDr = std::min(minDr, pt.dynRangeDb);
+            if (!atF0 || std::fabs(pt.freqHz - fit.resonantFreqHz) < std::fabs(atF0->freqHz - fit.resonantFreqHz)) { atF0 = &pt; }
+        }
+        if (!std::isfinite(minDr)) {
+            v.reason = "noise floor not measured: run step 3 with the source off, then the DUT sweep again";
+            return v;
+        }
+        if (minDr < kMinDynamicRangeDb) {
+            std::snprintf(buf, sizeof(buf), "thru only %.1f dB above the noise floor (needs %.0f dB): raise the source level", minDr, kMinDynamicRangeDb);
+            v.reason = buf;
+            return v;
+        }
+        if (atF0 && fit.dipDepthDb > atF0->dynRangeDb - 3.0f) {
+            std::snprintf(buf, sizeof(buf), "the %.1f dB dip reaches the noise floor (%.1f dB below thru): depth and Q_i are only lower bounds",
+                          fit.dipDepthDb, atF0->dynRangeDb);
+            v.reason = buf;
+            return v;
+        }
+    }
+
+    // The -3 dB width must be resolved by the point spacing
+    size_t inWidth = 0;
+    for (const auto& pt : trace) {
+        if (pt.valid && std::isfinite(pt.magnitudeDb) && std::fabs(pt.freqHz - fit.resonantFreqHz) <= fit.bandwidth3dbHz / 2.0) { inWidth++; }
+    }
+    if (inWidth < kMinPointsIn3dbWidth) {
+        std::snprintf(buf, sizeof(buf), "the -3 dB width (%.1f kHz) spans %zu points (needs %zu): use more points or a narrower span",
+                      fit.bandwidth3dbHz / 1e3, inWidth, kMinPointsIn3dbWidth);
+        v.reason = buf;
+        return v;
+    }
+
+    v.validated = true;
+    if (origin == TraceOrigin::File) {
+        std::snprintf(buf, sizeof(buf), "measured by an external VNA, %zu points across the -3 dB width", inWidth);
+    }
+    else {
+        std::snprintf(buf, sizeof(buf), "noise floor measured, min dynamic range %.1f dB, %zu points across the -3 dB width", minDr, inWidth);
+    }
+    v.reason = buf;
+    return v;
 }
 
 } // namespace vna

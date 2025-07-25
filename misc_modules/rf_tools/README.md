@@ -93,6 +93,12 @@ SDR++ Core VFO Stream [IQ @ Fs]
   * How it measures: the sweep creates its own narrow VFO (RBW, default 10 kHz) at an offset (default +250 kHz) from the receiver center, to keep the DC spike and LO leakage out of the VFO. For each point the center is retuned so the VFO lands on the target frequency, samples are discarded for the settle time (default 50 ms), then $|x|^2$ is averaged over the dwell time (default 20 ms). The center frequency is restored at the end and the sweep VFO is deleted. The PDW detector VFO is not used, but while the center moves the other VFOs follow it in absolute frequency.
   * The thru and noise reference are discarded when start, stop, points, RBW or offset change. Receiver gain must not change between the thru and DUT sweeps and AGC must be off.
   * Limits: magnitude only (no phase, so no complex fit). Accuracy is limited by receiver linearity, gain stability, the RBW (a notch narrower than the RBW is smeared) and the flatness of the source. The sweep is slow: the panel shows the estimate, points x (settle + dwell) plus retune overhead, and refuses sweeps above 10 minutes. Settle must exceed the retune and stream latency of the source, otherwise samples from the previous point leak in; this has not been checked against real hardware.
+* **Fit validation.** Any dip deeper than 1.5 dB is fitted, so a fit is shown as **[NOT VALIDATED]** (orange, with the reason, and a dimmed f0 marker) unless all of these hold:
+  * scalar sweep: a noise floor was measured before the DUT sweep; without it, signals that change between the thru and DUT sweeps (for example broadcast stations picked up with no source connected) can pass for a resonance;
+  * scalar sweep: the thru is at least 20 dB above the noise floor at every usable point;
+  * scalar sweep: the dip does not reach within 3 dB of the noise floor (otherwise depth and Q_i are only lower bounds);
+  * any trace: at least 3 usable points lie inside the -3 dB width.
+  A file from an external VNA only needs the last condition. The rules are in `validateFit` (`src/vna/vna_analyzer.cpp`) and are covered by test 9 of `test_rf_tools_resonator`.
 * The current trace can be exported with **Export CSV** (`freq_hz, s21_db, phase_deg`, empty phase when not measured). The panel shows where the trace came from (file name and load time, or sweep time and settings) next to the fit.
 * **Width-based resonator estimate:**
   * The canonical Lorentzian notch model:

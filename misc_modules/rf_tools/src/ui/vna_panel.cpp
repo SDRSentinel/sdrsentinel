@@ -78,7 +78,7 @@ void VNAPanel::draw(vna::VNAAnalyzer& analyzer) {
         else {
             analyzer.setFullTrace(result.trace);
             analyzer.setTraceSource("Scalar |S21| sweep " + formatTime(result.finishedAt) + ", " + vna::ScalarSweep::describe(result.settings)
-                                    + (sweep_.hasNoise() ? ", noise floor applied" : ", no noise floor"));
+                                    + (sweep_.hasNoise() ? ", noise floor applied" : ", no noise floor"), vna::TraceOrigin::ScalarSweep);
             sweep_msg_ = "DUT sweep done";
             trace = analyzer.getTrace();
             fit = analyzer.getDipFit();
@@ -146,12 +146,23 @@ void VNAPanel::draw(vna::VNAAnalyzer& analyzer) {
                                unreliable, trace.size(), (double)vna::ScalarSweep::kUnreliableMarginDb);
         }
         if (fit.valid) {
-            ImGui::TextColored(ImVec4(0.2f, 0.9f, 1.0f, 1.0f),
-                "[RESONANCE] f0 = %.4f MHz | BW(-3dB) = %.1f kHz | Dip = %.1f dB",
+            vna::FitValidation check = vna::validateFit(trace, fit, analyzer.getTraceOrigin());
+            const ImVec4 dim(1.0f, 0.65f, 0.2f, 1.0f);
+            ImGui::TextColored(check.validated ? ImVec4(0.2f, 0.9f, 1.0f, 1.0f) : dim,
+                "%s f0 = %.4f MHz | BW(-3dB) = %.1f kHz | Dip = %.1f dB",
+                check.validated ? "[RESONANCE]" : "[NOT VALIDATED]",
                 fit.resonantFreqHz / 1e6, fit.bandwidth3dbHz / 1e3, fit.dipDepthDb);
-            ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f),
+            ImGui::TextColored(check.validated ? ImVec4(0.3f, 1.0f, 0.4f, 1.0f) : dim,
                 "Loaded Q (Q_L): %.0f | Coupling Q (Q_c): %.0f | Internal Q (Q_i): %.0f",
                 fit.loadedQ, fit.couplingQ, fit.internalQ);
+            ImGui::PushTextWrapPos(0.0f);
+            if (check.validated) {
+                ImGui::TextDisabled("Validated: %s", check.reason.c_str());
+            }
+            else {
+                ImGui::TextColored(dim, "Not validated: %s. Do not use these values.", check.reason.c_str());
+            }
+            ImGui::PopTextWrapPos();
         }
         else {
             ImGui::TextDisabled("No resonance fit (needs at least 7 usable points and a 1.5 dB dip or peak)");
@@ -174,7 +185,7 @@ void VNAPanel::draw(vna::VNAAnalyzer& analyzer) {
     // Plot tabs
     if (ImGui::BeginTabBar("##vna_plot_tabs")) {
         if (ImGui::BeginTabItem("S21 Transmission Magnitude (|S21|)")) {
-            drawMagnitudePlot(trace, fit);
+            drawMagnitudePlot(trace, fit, vna::validateFit(trace, fit, analyzer.getTraceOrigin()).validated);
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("S21 Transmission Phase (deg)")) {
@@ -205,7 +216,7 @@ void VNAPanel::drawImport(vna::VNAAnalyzer& analyzer) {
         if (res.ok) {
             analyzer.setFullTrace(res.trace);
             analyzer.setTraceSource("File " + baseName(import_path_) + " (" + res.format + "), loaded " + formatTime(std::chrono::system_clock::now())
-                                    + ", " + std::to_string(res.trace.size()) + " points");
+                                    + ", " + std::to_string(res.trace.size()) + " points", vna::TraceOrigin::File);
             import_error_.clear();
         }
         else {
@@ -298,7 +309,7 @@ void VNAPanel::drawScalarSweep(vna::VNAAnalyzer& analyzer) {
     }
 }
 
-void VNAPanel::drawMagnitudePlot(const std::vector<vna::VNASweepPoint>& trace, const vna::ResonatorDipFit& fit) {
+void VNAPanel::drawMagnitudePlot(const std::vector<vna::VNASweepPoint>& trace, const vna::ResonatorDipFit& fit, bool validated) {
     float width = ImGui::GetContentRegionAvail().x;
     float height = 220.0f;
 
@@ -355,11 +366,12 @@ void VNAPanel::drawMagnitudePlot(const std::vector<vna::VNASweepPoint>& trace, c
     if (fit.valid) {
         double fMin = trace.front().freqHz, fMax = trace.back().freqHz;
         float xDip = cursor.x + static_cast<float>((fit.resonantFreqHz - fMin) / (fMax - fMin + 1e-9)) * width;
-        draw_list->AddLine(ImVec2(xDip, cursor.y), ImVec2(xDip, cursor.y + height), IM_COL32(255, 80, 80, 180), 1.5f);
+        ImU32 markerCol = validated ? IM_COL32(255, 80, 80, 180) : IM_COL32(255, 165, 50, 110);
+        draw_list->AddLine(ImVec2(xDip, cursor.y), ImVec2(xDip, cursor.y + height), markerCol, 1.5f);
 
-        char markerBuf[48];
-        std::snprintf(markerBuf, sizeof(markerBuf), "f0: %.3f MHz", fit.resonantFreqHz / 1e6);
-        draw_list->AddText(ImVec2(xDip + 6, cursor.y + height - 20), IM_COL32(255, 100, 100, 255), markerBuf);
+        char markerBuf[64];
+        std::snprintf(markerBuf, sizeof(markerBuf), validated ? "f0: %.3f MHz" : "f0: %.3f MHz (not validated)", fit.resonantFreqHz / 1e6);
+        draw_list->AddText(ImVec2(xDip + 6, cursor.y + height - 20), validated ? IM_COL32(255, 100, 100, 255) : IM_COL32(255, 165, 50, 220), markerBuf);
     }
 
     ImGui::Dummy(ImVec2(width, height + 6.0f));

@@ -26,6 +26,26 @@ struct ResonatorDipFit {
     float couplingQ = 0.0f;   // Q_c: Feedline coupling quality factor = Q_L / (1 - S21_min)
 };
 
+enum class TraceOrigin {
+    None,
+    File,        // measured by an external VNA (Touchstone/CSV import)
+    ScalarSweep  // SDR++ receiver + external broadband source
+};
+
+// Whether a fit can be trusted given how the trace was measured. A fit that is not validated is still shown,
+// marked as such, with the first reason that failed.
+struct FitValidation {
+    bool validated = false;
+    std::string reason;
+};
+
+// Thru must be at least this far above the noise floor for a scalar sweep fit to count as validated
+constexpr float kMinDynamicRangeDb = 20.0f;
+// The -3 dB width must span at least this many trace points
+constexpr size_t kMinPointsIn3dbWidth = 3;
+
+FitValidation validateFit(const std::vector<VNASweepPoint>& trace, const ResonatorDipFit& fit, TraceOrigin origin);
+
 struct VNASweepConfig {
     double startFreqHz = 90.0e6;
     double stopFreqHz = 110.0e6;
@@ -47,8 +67,9 @@ public:
     void setFullTrace(const std::vector<VNASweepPoint>& trace);
 
     // Where the trace came from (file name and time, or sweep settings), shown next to the fit
-    void setTraceSource(const std::string& source);
+    void setTraceSource(const std::string& source, TraceOrigin origin);
     std::string getTraceSource() const;
+    TraceOrigin getTraceOrigin() const;
 
     std::vector<VNASweepPoint> getTrace() const;
     ResonatorDipFit getDipFit() const;
@@ -64,6 +85,7 @@ private:
     std::vector<VNASweepPoint> trace_;
     ResonatorDipFit latestFit_;
     std::string traceSource_;
+    TraceOrigin traceOrigin_ = TraceOrigin::None;
 };
 
 } // namespace vna

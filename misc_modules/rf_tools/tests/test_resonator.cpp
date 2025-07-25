@@ -478,10 +478,11 @@ int main() {
     {
         VNAAnalyzer vna;
         TEST_CHECK(vna.getTrace().empty() && !vna.getDipFit().valid, "no data until something is loaded");
-        vna.setTraceSource("test");
+        vna.setTraceSource("test", TraceOrigin::File);
         TEST_CHECK(vna.getTraceSource() == "test", "trace source kept");
         vna.clearTrace();
         TEST_CHECK(vna.getTraceSource().empty(), "clear resets the source");
+        TEST_CHECK(vna.getTraceOrigin() == TraceOrigin::None, "clear resets the origin");
 
         // A trace of NaN phases fits fine; one invalid point at the bottom does not become the extremum
         std::vector<VNASweepPoint> t;
@@ -497,6 +498,67 @@ int main() {
         vna.setFullTrace(t);
         auto fit = vna.getDipFit();
         TEST_CHECK(fit.valid && fit.resonantFreqHz != 20.0e6, "fit skips the flagged point");
+        std::cout << "  -> PASSED.\n";
+    }
+
+    // --------------------------------------------------------------------------------------
+    std::cout << "[TEST] 9. Fit validation (noise floor, dynamic range, dip vs floor, resolution)\n";
+    {
+        // Notch with -3 dB style width of about 2 * halfWidthHz around 100 MHz
+        auto notch = [](size_t n, double spanHz, double halfWidthHz, float depthDb, float dynRangeDb) {
+            std::vector<VNASweepPoint> tr;
+            for (size_t i = 0; i < n; ++i) {
+                VNASweepPoint p;
+                p.freqHz = 100.0e6 - spanHz / 2.0 + spanHz * (double)i / (double)(n - 1);
+                double d = (p.freqHz - 100.0e6) / halfWidthHz;
+                p.magnitudeDb = (float)(-depthDb / (1.0 + d * d));
+                p.phaseDeg = NAN;
+                p.dynRangeDb = dynRangeDb;
+                tr.push_back(p);
+            }
+            return tr;
+        };
+        VNAAnalyzer a;
+        auto check = [&](const std::vector<VNASweepPoint>& tr, TraceOrigin origin) {
+            return validateFit(tr, a.fitResonance(tr, true), origin);
+        };
+
+        auto good = notch(401, 2.0e6, 50.0e3, 15.0f, 40.0f);
+        TEST_CHECK(a.fitResonance(good, true).valid, "reference notch fits");
+
+        FitValidation v = validateFit(good, ResonatorDipFit{}, TraceOrigin::File);
+        TEST_CHECK(!v.validated && v.reason == "no fit", "no fit is never validated");
+
+        v = check(good, TraceOrigin::None);
+        TEST_CHECK(!v.validated, "unknown origin is not validated");
+
+        v = check(notch(401, 2.0e6, 50.0e3, 15.0f, NAN), TraceOrigin::ScalarSweep);
+        TEST_CHECK(!v.validated && v.reason.find("noise floor not measured") != std::string::npos, "sweep without noise floor: " + v.reason);
+        std::cout << "  -> no floor: " << v.reason << "\n";
+
+        v = check(notch(401, 2.0e6, 50.0e3, 8.0f, 12.0f), TraceOrigin::ScalarSweep);
+        TEST_CHECK(!v.validated && v.reason.find("needs 20 dB") != std::string::npos, "low dynamic range: " + v.reason);
+        std::cout << "  -> low dynamic range: " << v.reason << "\n";
+
+        v = check(notch(401, 2.0e6, 50.0e3, 21.0f, 22.0f), TraceOrigin::ScalarSweep);
+        TEST_CHECK(!v.validated && v.reason.find("reaches the noise floor") != std::string::npos, "dip at the floor: " + v.reason);
+        std::cout << "  -> dip at floor: " << v.reason << "\n";
+
+        v = check(good, TraceOrigin::ScalarSweep);
+        TEST_CHECK(v.validated, "clean sweep validates: " + v.reason);
+        std::cout << "  -> validated sweep: " << v.reason << "\n";
+
+        // 11 points over 2 MHz = 200 kHz spacing for a notch about 100 kHz wide
+        v = check(notch(11, 2.0e6, 50.0e3, 15.0f, NAN), TraceOrigin::File);
+        TEST_CHECK(!v.validated && v.reason.find("spans") != std::string::npos, "coarse file trace: " + v.reason);
+        std::cout << "  -> coarse: " << v.reason << "\n";
+
+        v = check(notch(401, 2.0e6, 50.0e3, 15.0f, NAN), TraceOrigin::File);
+        TEST_CHECK(v.validated && v.reason.find("external VNA") != std::string::npos, "fine file trace validates: " + v.reason);
+
+        // Ambient-signal case seen on air: a 3.9 dB 'dip' from a sweep without source and floor stays unvalidated
+        v = check(notch(21, 1.0e6, 30.0e3, 3.9f, NAN), TraceOrigin::ScalarSweep);
+        TEST_CHECK(!v.validated, "ambient dip without a floor is not validated");
         std::cout << "  -> PASSED.\n";
     }
 
