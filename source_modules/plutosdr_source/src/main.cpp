@@ -15,7 +15,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "plutosdr_source",
-    /* Description:     */ "PlutoSDR source module for SDR++",
+    /* Description:     */ "PlutoSDR source module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 2, 0,
     /* Max instances    */ 1

@@ -17,7 +17,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "airspy_source",
-    /* Description:     */ "Airspy source module for SDR++",
+    /* Description:     */ "Airspy source module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 1, 0,
     /* Max instances    */ 1

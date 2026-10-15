@@ -18,7 +18,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "frequency_manager",
-    /* Description:     */ "Frequency manager module for SDR++",
+    /* Description:     */ "Frequency manager module for SDRSentinel",
     /* Author:          */ "Ryzerth;Zimm",
     /* Version:         */ 0, 3, 0,
     /* Max instances    */ 1

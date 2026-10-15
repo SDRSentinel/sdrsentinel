@@ -19,7 +19,7 @@ public:
                             double sampleRate,
                             double centerFreqHz,
                             const std::string& author = "Suleyman Poyraz",
-                            const std::string& description = "SDR++ rf_tools pulse extraction and direction finding recording");
+                            const std::string& description = "SDRSentinel rf_tools pulse extraction and direction finding recording");
 
     static bool exportJSON(const std::string& filePath,
                            const std::vector<PDW>& pdws,

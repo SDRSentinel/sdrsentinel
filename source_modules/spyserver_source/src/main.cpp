@@ -15,7 +15,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "spyserver_source",
-    /* Description:     */ "SpyServer source module for SDR++",
+    /* Description:     */ "SpyServer source module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 1, 0,
     /* Max instances    */ 1

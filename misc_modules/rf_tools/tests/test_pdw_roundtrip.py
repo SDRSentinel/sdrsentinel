@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SDR++ rf_tools PDW C++ to Python Round-Trip and HDF5 Integrity Test
+SDRSentinel rf_tools PDW C++ to Python Round-Trip and HDF5 Integrity Test
 Validates binary serialization and the gr-pdw style HDF5 layout (see read_sdrpp_pdw.py for the differences).
 """
 

@@ -14,7 +14,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "audio_source",
-    /* Description:     */ "Audio source module for SDR++",
+    /* Description:     */ "Audio source module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 1, 0,
     /* Max instances    */ 1
@@ -195,7 +195,7 @@ private:
         unsigned int bufferFrames = _this->sampleRate / 200;
         RtAudio::StreamOptions opts;
         opts.flags = RTAUDIO_MINIMIZE_LATENCY;
-        opts.streamName = "SDR++ Audio Source";
+        opts.streamName = "SDRSentinel Audio Source";
 
         // Open and start stream
         try {

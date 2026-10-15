@@ -15,7 +15,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "sdrpp_server_source",
-    /* Description:     */ "SDR++ Server source module for SDR++",
+    /* Description:     */ "SDR++ Server source module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 2, 0,
     /* Max instances    */ 1

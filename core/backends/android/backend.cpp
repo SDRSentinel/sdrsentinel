@@ -24,7 +24,7 @@ namespace backend {
     EGLSurface _EglSurface = EGL_NO_SURFACE;
     EGLContext _EglContext = EGL_NO_CONTEXT;
     bool _Initialized = false;
-    char _LogTag[] = "SDR++";
+    char _LogTag[] = "SDRSentinel";
     bool initialized = false;
     bool pauseRendering = false;
     bool exited = false;

@@ -7,7 +7,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "scanner",
-    /* Description:     */ "Frequency scanner for SDR++",
+    /* Description:     */ "Frequency scanner for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 1, 0,
     /* Max instances    */ 1

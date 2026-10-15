@@ -22,7 +22,7 @@ struct SdrppScalarProbe::Impl {
 
 std::unique_ptr<SdrppScalarProbe> SdrppScalarProbe::create(const std::string& moduleName, const ScalarSweepSettings& s, std::string& err) {
     if (!gui::mainWindow.isPlaying()) {
-        err = "Start the SDR++ source first (play button): the sweep measures through the running receiver";
+        err = "Start the SDRSentinel source first (play button): the sweep measures through the running receiver";
         return nullptr;
     }
     double span = gui::waterfall.getBandwidth();

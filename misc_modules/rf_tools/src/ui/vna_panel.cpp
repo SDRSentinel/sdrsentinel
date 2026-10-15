@@ -243,7 +243,7 @@ void VNAPanel::startSweep(vna::SweepStage stage) {
 
 void VNAPanel::drawScalarSweep(vna::VNAAnalyzer& analyzer) {
     (void)analyzer;
-    if (!ImGui::CollapsingHeader("Scalar |S21| sweep (SDR++ receiver + external source)##vna_sw_hdr")) { return; }
+    if (!ImGui::CollapsingHeader("Scalar |S21| sweep (SDRSentinel receiver + external source)##vna_sw_hdr")) { return; }
 
     ImGui::TextWrapped("Needs a broadband source (noise source or tracking generator) feeding the DUT and the receiver. "
                        "Receiver gain must not change between the thru and DUT sweeps, and AGC must be off. "
@@ -273,7 +273,7 @@ void VNAPanel::drawScalarSweep(vna::VNAAnalyzer& analyzer) {
     if (!settingsErr.empty()) { ImGui::TextColored(kErrorColor, "%s", settingsErr.c_str()); }
 
     bool srcRunning = host_.sourceRunning && host_.sourceRunning();
-    if (!srcRunning) { ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "SDR++ source is not running: start it to sweep"); }
+    if (!srcRunning) { ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "SDRSentinel source is not running: start it to sweep"); }
 
     if (sweep_.hasThru()) {
         ImGui::Text("Thru reference: %s", formatTime(sweep_.thruTime()).c_str());

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SDR++ rf_tools PDW Binary File Reader and HDF5 Converter
+SDRSentinel rf_tools PDW Binary File Reader and HDF5 Converter
 
 The HDF5 output follows the layout of GTRI gr-pdw (python/pdw_to_file.py): the attributes
 time_unix, time_py, samp_rate, ref_level and the 7 datasets pulse_width_samps, pulse_width_secs,
@@ -146,7 +146,7 @@ def convert_to_hdf5(pdw_data, h5_filepath):
     print(f"Successfully exported {len(recs)} pulses to {h5_filepath} (gr-pdw style HDF5 layout, see script docstring for differences).")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Read SDR++ PDW Binary and optionally export to HDF5")
+    parser = argparse.ArgumentParser(description="Read SDRSentinel PDW Binary and optionally export to HDF5")
     parser.add_argument("input_pdwbin", help="Path to .pdwbin file")
     parser.add_argument("--to-h5", dest="output_h5", help="Export to a gr-pdw style HDF5 file")
     args = parser.parse_args()

@@ -56,8 +56,8 @@ bool SigMFExporter::exportSigMF(const std::string& baseFilePath,
         { "core:version", "1.0.0" },
         { "core:description", description },
         { "core:author", author },
-        { "core:recorder", "SDR++ rf_tools" },
-        { "core:hw", "SDR++ rf_tools" }
+        { "core:recorder", "SDRSentinel rf_tools" },
+        { "core:hw", "SDRSentinel rf_tools" }
     };
 
     // 2. Captures section
@@ -115,7 +115,7 @@ bool SigMFExporter::exportJSON(const std::string& filePath,
     // Session metadata
     root["session"] = {
         { "timestamp", getIso8601Utc() },
-        { "generator", "SDR++ rf_tools" },
+        { "generator", "SDRSentinel rf_tools" },
         { "sample_rate_hz", sampleRate },
         { "center_frequency_hz", centerFreqHz },
         { "total_pulses", pdws.size() },

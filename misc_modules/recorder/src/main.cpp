@@ -29,7 +29,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "recorder",
-    /* Description:     */ "Recorder module for SDR++",
+    /* Description:     */ "Recorder module for SDRSentinel",
     /* Author:          */ "Ryzerth",
     /* Version:         */ 0, 3, 0,
     /* Max instances    */ -1

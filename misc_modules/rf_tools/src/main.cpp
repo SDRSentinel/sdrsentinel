@@ -24,7 +24,7 @@
 
 SDRPP_MOD_INFO{
     /* Name:            */ "rf_tools",
-    /* Description:     */ "Pulse & RF Analysis Suite for SDR++",
+    /* Description:     */ "Pulse & RF Analysis Suite for SDRSentinel",
     /* Author:          */ "Suleyman Poyraz",
     /* Version:         */ 0, 1, 0,
     /* Max instances    */ -1
