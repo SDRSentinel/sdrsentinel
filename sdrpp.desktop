@@ -5,5 +5,5 @@ Type=Application
 Terminal=false
 Exec=@CMAKE_INSTALL_PREFIX@/bin/sdrpp
 Name=SDR++
-Icon=@CMAKE_INSTALL_PREFIX@/share/sdrpp/icons/sdrpp.png
+Icon=@CMAKE_INSTALL_PREFIX@/share/sdrpp/icons/sdrsentinel.png
 Categories=HamRadio

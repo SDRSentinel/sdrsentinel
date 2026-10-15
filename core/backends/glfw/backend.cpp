@@ -119,13 +119,19 @@ namespace backend {
     #endif
 
         // Load app icon
-        if (!std::filesystem::is_regular_file(resDir + "/icons/sdrpp.png")) {
-            flog::error("Icon file '{0}' doesn't exist!", resDir + "/icons/sdrpp.png");
-            return 1;
+        std::string iconPath = resDir + "/icons/sdrsentinel.png";
+        if (!std::filesystem::is_regular_file(iconPath)) {
+            if (std::filesystem::is_regular_file(resDir + "/icons/sdrpp.png")) {
+                iconPath = resDir + "/icons/sdrpp.png";
+            }
+            else {
+                flog::error("Icon file '{0}' doesn't exist!", iconPath);
+                return 1;
+            }
         }
 
         GLFWimage icons[10];
-        icons[0].pixels = stbi_load(((std::string)(resDir + "/icons/sdrpp.png")).c_str(), &icons[0].width, &icons[0].height, 0, 4);
+        icons[0].pixels = stbi_load(iconPath.c_str(), &icons[0].width, &icons[0].height, 0, 4);
         icons[1].pixels = (unsigned char*)malloc(16 * 16 * 4);
         icons[1].width = icons[1].height = 16;
         icons[2].pixels = (unsigned char*)malloc(24 * 24 * 4);

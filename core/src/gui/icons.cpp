@@ -37,7 +37,11 @@ namespace icons {
             return false;
         }
 
-        LOGO = (ImTextureID)(uintptr_t)loadTexture(resDir + "/icons/sdrpp.png");
+        std::string logoPath = resDir + "/icons/sdrsentinel.png";
+        if (!std::filesystem::is_regular_file(logoPath) && std::filesystem::is_regular_file(resDir + "/icons/sdrpp.png")) {
+            logoPath = resDir + "/icons/sdrpp.png";
+        }
+        LOGO = (ImTextureID)(uintptr_t)loadTexture(logoPath);
         PLAY = (ImTextureID)(uintptr_t)loadTexture(resDir + "/icons/play.png");
         STOP = (ImTextureID)(uintptr_t)loadTexture(resDir + "/icons/stop.png");
         MENU = (ImTextureID)(uintptr_t)loadTexture(resDir + "/icons/menu.png");

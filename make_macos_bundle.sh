@@ -19,10 +19,10 @@ bundle_create_struct $BUNDLE
 cp -R root/res/* $BUNDLE/Contents/Resources/
 
 # Create the icon file
-bundle_create_icns root/res/icons/sdrpp.macos.png $BUNDLE/Contents/Resources/sdrpp
+bundle_create_icns root/res/icons/sdrsentinel.macos.png $BUNDLE/Contents/Resources/sdrsentinel
 
 # Create the property list
-bundle_create_plist sdrpp SDR++ org.sdrpp.sdrpp 1.2.1 sdrp sdrpp sdrpp $BUNDLE/Contents/Info.plist
+bundle_create_plist sdrpp SDR++ org.sdrpp.sdrpp 1.2.1 sdrp sdrpp sdrsentinel $BUNDLE/Contents/Info.plist
 
 # ========================= Install binaries =========================
 
