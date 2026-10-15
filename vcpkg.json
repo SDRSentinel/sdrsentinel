@@ -3,7 +3,7 @@
   "name": "sdrsentinel",
   "version-string": "1.3.0",
   "description": "Passive RF signal characterization, pulse analysis (PDW), and direction finding suite based on SDR++",
-  "homepage": "https://github.com/SDRSentinel/SDRPlusPlus",
+  "homepage": "https://github.com/SDRSentinel/sdrsentinel",
   "license": "GPL-3.0-or-later",
   "dependencies": [
     "fftw3",

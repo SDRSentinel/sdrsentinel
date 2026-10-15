@@ -147,8 +147,8 @@ The [SDRSentinel organization](https://github.com/SDRSentinel) also hosts develo
 Clone the SDRSentinel development repository before following the platform-specific instructions:
 
 ```bash
-git clone https://github.com/SDRSentinel/SDRPlusPlus.git
-cd SDRPlusPlus
+git clone https://github.com/SDRSentinel/sdrsentinel.git
+cd sdrsentinel
 ```
 
 ### Dependencies

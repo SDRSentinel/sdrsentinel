@@ -8,7 +8,7 @@ List the checks you ran and their results. For documentation or asset changes, d
 
 ## Contribution checklist
 
-- [ ] I followed [CONTRIBUTING.md](https://github.com/SDRSentinel/SDRPlusPlus/blob/master/CONTRIBUTING.md).
+- [ ] I followed [CONTRIBUTING.md](https://github.com/SDRSentinel/sdrsentinel/blob/master/CONTRIBUTING.md).
 - [ ] I preserved relevant upstream credits and license notices.
 - [ ] Changes include the relevant tests or verification evidence.
 
@@ -27,4 +27,4 @@ For code changes, complete the relevant checks and explain any that do not apply
 - [ ] Unit tests executed and passing.
 - [ ] No heap allocations introduced inside hot DSP loops.
 
-See [AGENTS.md](https://github.com/SDRSentinel/SDRPlusPlus/blob/master/AGENTS.md) for AI contribution and verification requirements.
+See [AGENTS.md](https://github.com/SDRSentinel/sdrsentinel/blob/master/AGENTS.md) for AI contribution and verification requirements.
