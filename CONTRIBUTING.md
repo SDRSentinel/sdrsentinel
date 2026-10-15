@@ -136,4 +136,4 @@ Custom palettes live in `root/res/colormaps/`:
 
 ## ⚖️ License
 
-By contributing to **SDRSentinel**, you agree that your contributions will be licensed under the project's [GNU General Public License v3.0 (GPL-3.0)](license).
+By contributing to **SDRSentinel**, you agree that your contributions will be licensed under the project's [GNU General Public License v3.0 (GPL-3.0)](LICENSE.md).

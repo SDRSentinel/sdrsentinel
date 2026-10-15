@@ -1,7 +1,21 @@
-# SDRSentinel
+<p align="center">
+  <img src="icon.png" alt="SDRSentinel logo" width="160">
+</p>
 
-**Advanced Passive RF Signal Characterization, Pulse Analysis (PDW), and Direction Finding Suite**  
-*Built on the high-performance, modular [SDR++](https://github.com/AlexandreRouma/SDRPlusPlus) engine.*
+<h1 align="center">SDRSentinel</h1>
+
+<p align="center">
+  <strong>Passive RF Signal Characterization, Pulse Analysis (PDW), and Direction Finding</strong><br>
+  Built on the modular <a href="https://github.com/AlexandreRouma/SDRPlusPlus">SDR++</a> engine.
+</p>
+
+<p align="center">
+  <a href="#building-from-source">Build &amp; install</a> ·
+  <a href="docs/04_kullanim_kilavuzu.md">User guide</a> ·
+  <a href="ROADMAP.md">Roadmap</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="https://github.com/SDRSentinel">Organization</a>
+</p>
 
 ---
 
@@ -115,7 +129,27 @@ Comprehensive technical specifications and operating instructions are provided i
 
 ---
 
+## Related Repositories
+
+The [SDRSentinel organization](https://github.com/SDRSentinel) also hosts development and reference forks:
+
+| Repository | Role |
+|---|---|
+| [GPU_SDR](https://github.com/SDRSentinel/GPU_SDR) | GPU-accelerated USRP acquisition and resonator readout development. |
+| [gr-pdw](https://github.com/SDRSentinel/gr-pdw) | GNU Radio PDW extraction, calibration, and HDF5 reference. |
+| [gr-doa](https://github.com/SDRSentinel/gr-doa) | Legacy GNU Radio direction-finding algorithms and hardware examples. |
+| [coherent-rtlsdr](https://github.com/SDRSentinel/coherent-rtlsdr) | Legacy multi-channel coherent RTL-SDR receiver reference. |
+
+---
+
 ## Building from Source
+
+Clone the SDRSentinel development repository before following the platform-specific instructions:
+
+```bash
+git clone https://github.com/SDRSentinel/SDRPlusPlus.git
+cd SDRPlusPlus
+```
 
 ### Dependencies
 
@@ -223,7 +257,7 @@ uv run --no-project --with numpy --with h5py python ../misc_modules/rf_tools/tes
 
 ## License & Credits
 
-* **SDRSentinel** is licensed under the [GNU General Public License v3.0 (GPL-3.0)](license).
+* **SDRSentinel** is licensed under the [GNU General Public License v3.0 (GPL-3.0)](LICENSE.md).
 * **SDR++ Base Engine:** Created by Alexandre Rouma and the SDR++ contributor community. Full credits are preserved in [README_SDRPlusPlus.md](README_SDRPlusPlus.md).
 * **PDW & Power Calibration:** Based on algorithms and empirical datasets from [gr-pdw](https://github.com/gtri/gr-pdw) by the Georgia Tech Research Institute (GTRI, GPLv3).
 * **Direction Finding:** Mathematical foundation and steering vector formulations adapted from [gr-doa](https://github.com/EttusResearch/gr-doa) (GPLv3).
