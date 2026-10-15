@@ -21,7 +21,6 @@ out/
 cmake-build-debug/
 CMakeLists.txt.user
 root/res/layouts/default.json
-docs/
 .licenses/
 .omc/
 test_output/
