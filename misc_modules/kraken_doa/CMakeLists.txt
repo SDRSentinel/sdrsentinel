@@ -8,12 +8,17 @@ endif()
 
 include(${SDRPP_MODULE_CMAKE})
 
-find_package(Eigen3 3.3 CONFIG QUIET)
+find_package(Eigen3 CONFIG QUIET)
 if (TARGET Eigen3::Eigen)
     set(KRAKEN_DOA_EIGEN Eigen3::Eigen)
 else()
-    find_path(EIGEN3_INCLUDE_DIR NAMES Eigen/Dense PATHS
-        /opt/homebrew/include/eigen3 /usr/local/include/eigen3 /usr/include/eigen3)
+    find_package(Eigen3 QUIET)
+    if (TARGET Eigen3::Eigen)
+        set(KRAKEN_DOA_EIGEN Eigen3::Eigen)
+    else()
+        find_path(EIGEN3_INCLUDE_DIR NAMES Eigen/Dense PATHS
+            /opt/homebrew/include/eigen3 /usr/local/include/eigen3 /usr/include/eigen3)
+    endif()
 endif()
 
 target_include_directories(kraken_doa PRIVATE "src/")

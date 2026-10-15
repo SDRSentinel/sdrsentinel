@@ -3,6 +3,26 @@ project(audio_sink)
 
 file(GLOB SRC "src/*.cpp")
 
+if (NOT MSVC)
+    find_package(PkgConfig QUIET)
+    if (PKG_CONFIG_FOUND)
+        pkg_check_modules(RTAUDIO QUIET rtaudio)
+    endif ()
+
+    if (NOT RTAUDIO_FOUND)
+        find_package(RtAudio CONFIG QUIET)
+        if (RtAudio_FOUND)
+            set(RTAUDIO_LIBRARIES RtAudio::rtaudio)
+            set(RTAUDIO_FOUND TRUE)
+        endif ()
+    endif ()
+
+    if (NOT RTAUDIO_FOUND)
+        message(STATUS "rtaudio not found: skipping audio_sink module")
+        return()
+    endif ()
+endif ()
+
 include(${SDRPP_MODULE_CMAKE})
 
 if (MSVC)
@@ -13,13 +33,8 @@ if (MSVC)
     target_include_directories(audio_sink PRIVATE "C:/Program Files (x86)/RtAudio/include/rtaudio")
 
     target_link_libraries(audio_sink PRIVATE rtaudio)
-else (MSVC)
-    find_package(PkgConfig)
-
-    pkg_check_modules(RTAUDIO REQUIRED rtaudio)
-
+else ()
     target_include_directories(audio_sink PRIVATE ${RTAUDIO_INCLUDE_DIRS})
     target_link_directories(audio_sink PRIVATE ${RTAUDIO_LIBRARY_DIRS})
     target_link_libraries(audio_sink PRIVATE ${RTAUDIO_LIBRARIES})
-
 endif ()
