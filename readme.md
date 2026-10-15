@@ -123,22 +123,77 @@ Comprehensive technical specifications and operating instructions are provided i
 * **Core Libraries:** `fftw3f`, `eigen3`, `glfw3`, `zstd`, `libusb`
 * **Audio Backends:** `portaudio` or `rtaudio`
 
-### Quick Build (macOS / Linux)
+### Installation via Homebrew (macOS)
+
+You can install SDRSentinel directly from the official [`Zaryob/tapir`](https://github.com/Zaryob/tapir) tap:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/Zaryob/SDRPlusPlus.git SDRSentinel
-cd SDRSentinel
+# Add the Tapir tap
+brew tap zaryob/tapir https://github.com/Zaryob/tapir.git
 
-# 2. Configure build with rf_tools and kraken_doa enabled
-cmake -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DOPT_BUILD_RF_TOOLS=ON \
-    -DOPT_BUILD_KRAKEN_DOA=ON
+# Install pre-built application bundle (Cask)
+brew install --cask sdrsentinel
 
-# 3. Compile
-ninja -C build
+# Or compile latest from source (Formula)
+brew install sdrsentinel
 ```
+
+### Primary Build Method: vcpkg (Cross-Platform)
+
+SDRSentinel uses **vcpkg manifest mode** (`vcpkg.json`) as its primary cross-platform dependency manager.
+
+1. **Prerequisites:** Ensure `VCPKG_ROOT` is set in your environment:
+   ```bash
+   git clone https://github.com/microsoft/vcpkg.git $HOME/vcpkg
+   $HOME/vcpkg/bootstrap-vcpkg.sh # or bootstrap-vcpkg.bat on Windows
+   export VCPKG_ROOT=$HOME/vcpkg
+   ```
+
+2. **Configure & Build with CMake Presets:**
+   ```bash
+   # Configure (vcpkg automatically installs all dependencies from vcpkg.json)
+   cmake --preset default
+
+   # Build
+   cmake --build --preset default
+   ```
+
+   *On Windows (Visual Studio x64):*
+   ```powershell
+   cmake --preset vcpkg-windows
+   cmake --build --preset vcpkg-windows --config Release
+   ```
+
+3. **Manual CMake Invocation:**
+   ```bash
+   cmake -B build -S . -G Ninja \
+       -DCMAKE_BUILD_TYPE=Release \
+       -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+       -DOPT_BUILD_RF_TOOLS=ON \
+       -DOPT_BUILD_KRAKEN_DOA=ON
+   ninja -C build
+   ```
+
+### CI/CD Packages & Releases
+
+Automated multi-platform packaging runs via GitHub Actions (`.github/workflows/package_builds.yml`):
+* **Windows:** Complete `.zip` distribution with all DLLs and runtime dependencies (`sdrsentinel_windows_x64.zip`).
+* **macOS:** Universal `.zip` containing self-contained `SDRSentinel.app` bundle for Apple Silicon and Intel.
+* **Ubuntu:** Native `.deb` packages for Ubuntu 24.04 (Noble) and Ubuntu 22.04 (Jammy).
+
+### Packaging & Maintenance Tooling
+
+All platform packaging and developer maintenance scripts are cleanly consolidated in dedicated directories:
+
+* **`packaging/`**:
+  * `packaging/windows/make_windows_package.ps1`: Builds self-contained Windows distributions including all required runtime DLLs.
+  * `packaging/macos/make_macos_bundle.sh` & `bundle_utils.sh`: Creates macOS `.app` bundles with dependency re-linking and code signature.
+  * `packaging/linux/make_debian_package.sh`: Generates standard `.deb` packages for Debian and Ubuntu with automatic Desktop integration.
+  * `packaging/docker/`: Unified multi-distribution Docker build system (`Dockerfile`, `do_build.sh`, `build_package.sh`). Build for any distro locally with `./packaging/docker/build_package.sh ubuntu:24.04`.
+* **`scripts/`**:
+  * `scripts/check_clang_format.sh`: CI check script to verify code formatting compliance.
+  * `scripts/run_clang_format.sh`: Code formatter script to apply standard formatting across the repository.
+  * `scripts/create_root.sh` / `create_root.bat`: Initializes development configuration workspaces (`root_dev/`).
 
 ### Running Test Suites
 

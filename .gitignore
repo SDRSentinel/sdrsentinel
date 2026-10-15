@@ -29,3 +29,4 @@ source_modules/badgesdr_source
 decoder_modules/mystery_decoder
 decoder_modules/tetra_decoder
 misc_modules/modulation_monitor
+vcpkg_installed/

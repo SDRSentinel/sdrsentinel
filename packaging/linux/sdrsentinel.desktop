@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+Terminal=false
+Exec=@CMAKE_INSTALL_PREFIX@/bin/sdrpp
+Name=SDRSentinel
+Comment=Passive RF signal characterization, pulse analysis, and direction finding suite
+Icon=@CMAKE_INSTALL_PREFIX@/share/sdrpp/icons/sdrsentinel.png
+Categories=HamRadio;AudioVideo;Science;

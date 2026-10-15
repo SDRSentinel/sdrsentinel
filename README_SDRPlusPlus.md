@@ -106,7 +106,7 @@ cmake --build . --config Release
 ### Create a new configuration root directory
 
 ```bat
-./create_root.bat
+./scripts/create_root.bat
 ```
 
 This will create the `root_dev` directory that will be used to save the configs of sdrpp and the modules.
@@ -207,7 +207,7 @@ make -j<N>
 ## Create a new root directory
 
 ```sh
-sh ./create_root.sh
+sh ./scripts/create_root.sh
 ```
 
 ## Running for development
@@ -305,7 +305,7 @@ make -j<N>
 From the top of the SDRPlusPlus directory:
 
 ```sh
-sh make_macos_bundle.sh ./build ./SDR++.app
+sh packaging/macos/make_macos_bundle.sh ./build ./SDR++.app
 ```
 
 This will create a `SDR++.app` bundle that you can instal like any other MacOS app by dragging it into Applications.

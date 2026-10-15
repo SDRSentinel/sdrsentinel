@@ -1,0 +1,75 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (vcpkg)",
+      "description": "Configure SDRSentinel using vcpkg manifest mode",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        },
+        "OPT_BUILD_RF_TOOLS": "ON",
+        "OPT_BUILD_KRAKEN_DOA": "ON",
+        "OPT_BUILD_PORTAUDIO_SINK": "ON",
+        "OPT_BUILD_NEW_PORTAUDIO_SINK": "ON"
+      }
+    },
+    {
+      "name": "vcpkg-macos",
+      "displayName": "macOS vcpkg",
+      "description": "Build for macOS using vcpkg manifest mode",
+      "inherits": "default",
+      "cacheVariables": {
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0"
+      }
+    },
+    {
+      "name": "vcpkg-windows",
+      "displayName": "Windows vcpkg x64",
+      "description": "Build for Windows x64 using vcpkg",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        },
+        "VCPKG_TARGET_TRIPLET": "x64-windows",
+        "OPT_BUILD_RF_TOOLS": "ON",
+        "OPT_BUILD_KRAKEN_DOA": "ON"
+      }
+    },
+    {
+      "name": "vcpkg-linux",
+      "displayName": "Linux vcpkg",
+      "description": "Build for Linux using vcpkg manifest mode",
+      "inherits": "default"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "vcpkg-macos",
+      "configurePreset": "vcpkg-macos"
+    },
+    {
+      "name": "vcpkg-windows",
+      "configurePreset": "vcpkg-windows",
+      "configuration": "Release"
+    },
+    {
+      "name": "vcpkg-linux",
+      "configurePreset": "vcpkg-linux"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "sdrsentinel",
+  "version-string": "1.0.0",
+  "description": "Passive RF signal characterization, pulse analysis (PDW), and direction finding suite based on SDR++",
+  "homepage": "https://github.com/Zaryob/SDRPlusPlus",
+  "license": "GPL-3.0-or-later",
+  "dependencies": [
+    "fftw3",
+    "glfw3",
+    "eigen3",
+    "zstd",
+    "libusb",
+    "portaudio"
+  ],
+  "features": {
+    "volk": {
+      "description": "Vector-Optimized Library of Kernels for SIMD acceleration",
+      "dependencies": [
+        "volk"
+      ]
+    },
+    "sdr-hardware": {
+      "description": "Common SDR hardware client libraries",
+      "dependencies": [
+        "librtlsdr",
+        "hackrf"
+      ]
+    }
+  }
+}

@@ -1,5 +1,5 @@
-$build_dir=$args[0]
-$root_dir=$args[1]
+$build_dir = if ($args[0]) { $args[0] } else { "./build" }
+$root_dir = if ($args[1]) { $args[1] } else { "./root" }
 
 mkdir sdrpp_windows_x64
 
@@ -102,11 +102,19 @@ cp $build_dir/misc_modules/rigctl_server/Release/rigctl_server.dll sdrpp_windows
 
 cp $build_dir/misc_modules/scanner/Release/scanner.dll sdrpp_windows_x64/modules/
 
+if (Test-Path "$build_dir/misc_modules/rf_tools/Release/rf_tools.dll") {
+    cp $build_dir/misc_modules/rf_tools/Release/rf_tools.dll sdrpp_windows_x64/modules/
+}
+if (Test-Path "$build_dir/misc_modules/kraken_doa/Release/kraken_doa.dll") {
+    cp $build_dir/misc_modules/kraken_doa/Release/kraken_doa.dll sdrpp_windows_x64/modules/
+}
+
 
 # Copy supporting libs
 cp 'C:/Program Files/PothosSDR/bin/libusb-1.0.dll' sdrpp_windows_x64/
 cp 'C:/Program Files/PothosSDR/bin/pthreadVC2.dll' sdrpp_windows_x64/
 
 Compress-Archive -Path sdrpp_windows_x64/ -DestinationPath sdrpp_windows_x64.zip
+Copy-Item sdrpp_windows_x64.zip sdrsentinel_windows_x64.zip -Force
 
 rm -Force -Recurse sdrpp_windows_x64

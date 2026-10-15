@@ -5,24 +5,27 @@ set -e
 BUILD_DIR=$1
 BUNDLE=$2
 
-source macos/bundle_utils.sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+source "$SCRIPT_DIR/bundle_utils.sh"
 
 # ========================= Prepare dotapp structure =========================
 
 # Clear .app
-rm -rf $BUNDLE
+rm -rf "$BUNDLE"
 
 # Create .app structure
-bundle_create_struct $BUNDLE
+bundle_create_struct "$BUNDLE"
 
 # Add resources
-cp -R root/res/* $BUNDLE/Contents/Resources/
+cp -R "$PROJECT_ROOT/root/res/"* "$BUNDLE/Contents/Resources/"
 
 # Create the icon file
-bundle_create_icns root/res/icons/sdrsentinel.macos.png $BUNDLE/Contents/Resources/sdrsentinel
+bundle_create_icns "$PROJECT_ROOT/root/res/icons/sdrsentinel.macos.png" "$BUNDLE/Contents/Resources/sdrsentinel"
 
 # Create the property list
-bundle_create_plist sdrpp SDR++ org.sdrpp.sdrpp 1.2.1 sdrp sdrpp sdrsentinel $BUNDLE/Contents/Info.plist
+bundle_create_plist sdrsentinel SDRSentinel org.sdrsentinel.app 1.0.0 sdrs sdrpp sdrsentinel $BUNDLE/Contents/Info.plist
 
 # ========================= Install binaries =========================
 
@@ -73,6 +76,7 @@ bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/f
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/iq_exporter/iq_exporter.dylib
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/recorder/recorder.dylib
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/rf_tools/rf_tools.dylib
+bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/kraken_doa/kraken_doa.dylib
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/rigctl_client/rigctl_client.dylib
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/rigctl_server/rigctl_server.dylib
 bundle_install_binary $BUNDLE $BUNDLE/Contents/Plugins $BUILD_DIR/misc_modules/scanner/scanner.dylib
