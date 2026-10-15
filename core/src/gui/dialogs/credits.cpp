@@ -8,10 +8,10 @@
 
 namespace credits {
     ImFont* bigFont;
-    ImVec2 imageSize(128.0f, 128.0f);
+    ImVec2 imageSize(80.0f, 80.0f);
 
     void init() {
-        imageSize = ImVec2(128.0f * style::uiScale, 128.0f * style::uiScale);
+        imageSize = ImVec2(80.0f * style::uiScale, 80.0f * style::uiScale);
     }
 
     void show() {
@@ -24,7 +24,7 @@ namespace credits {
         ImGui::BeginPopupModal("Credits", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
         ImGui::PushFont(style::hugeFont);
-        ImGui::TextUnformatted("SDRSentinel    ");
+        ImGui::TextUnformatted("SDRSentinel  ");
         ImGui::PopFont();
         ImGui::SameLine();
         ImGui::Image(icons::LOGO, imageSize);

@@ -8,10 +8,10 @@
 #include <backend.h>
 
 namespace LoadingScreen {
-    ImVec2 imageSize(128.0f, 128.0f);
+    ImVec2 imageSize(80.0f, 80.0f);
 
     void init() {
-        imageSize = ImVec2(128.0f * style::uiScale, 128.0f * style::uiScale);
+        imageSize = ImVec2(80.0f * style::uiScale, 80.0f * style::uiScale);
     }
 
     void show(std::string msg) {
