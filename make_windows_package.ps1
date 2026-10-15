@@ -32,6 +32,9 @@ cp 'C:/Program Files/PothosSDR/bin/hackrf.dll' sdrpp_windows_x64/
 
 cp $build_dir/source_modules/hermes_source/Release/hermes_source.dll sdrpp_windows_x64/modules/
 
+cp $build_dir/source_modules/hydrasdr_source/Release/hydrasdr_source.dll sdrpp_windows_x64/modules/
+cp 'C:/Program Files/hydrasdr-host/bin/hydrasdr.dll' sdrpp_windows_x64/
+
 cp $build_dir/source_modules/limesdr_source/Release/limesdr_source.dll sdrpp_windows_x64/modules/
 cp 'C:/Program Files/PothosSDR/bin/LimeSuite.dll' sdrpp_windows_x64/
 
@@ -74,6 +77,8 @@ cp $build_dir/sink_modules/network_sink/Release/network_sink.dll sdrpp_windows_x
 
 
 # Copy decoder modules
+cp $build_dir/decoder_modules/atv_decoder/Release/atv_decoder.dll sdrpp_windows_x64/modules/
+
 cp $build_dir/decoder_modules/m17_decoder/Release/m17_decoder.dll sdrpp_windows_x64/modules/
 cp "C:/Program Files/codec2/lib/libcodec2.dll" sdrpp_windows_x64/
 
