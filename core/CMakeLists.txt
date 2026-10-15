@@ -5,9 +5,9 @@ if (USE_INTERNAL_LIBCORRECT)
     add_subdirectory("libcorrect/")
 endif (USE_INTERNAL_LIBCORRECT)
 
-if (USE_BUNDLE_DEFAULTS)
+if (USE_BUNDLE_DEFAULTS OR APPLE)
 add_definitions(-DIS_MACOS_BUNDLE)
-endif (USE_BUNDLE_DEFAULTS)
+endif ()
 
 # Main code
 file(GLOB_RECURSE SRC "src/*.cpp" "src/*.c")

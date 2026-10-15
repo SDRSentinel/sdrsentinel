@@ -32,11 +32,13 @@ if (APPLE)
     set(DEFAULT_PORTAUDIO_MODULES ON)
     set(DEFAULT_PLUTO_MODULE OFF)
     set(DEFAULT_USRP_MODULE OFF)
+    set(DEFAULT_USE_BUNDLE_DEFAULTS ON)
 else ()
     set(DEFAULT_RTAUDIO_MODULES ON)
     set(DEFAULT_PORTAUDIO_MODULES OFF)
     set(DEFAULT_PLUTO_MODULE ON)
     set(DEFAULT_USRP_MODULE ON)
+    set(DEFAULT_USE_BUNDLE_DEFAULTS OFF)
 endif ()
 
 # Sources
@@ -103,7 +105,7 @@ option(OPT_BUILD_KRAKEN_DOA "Direction finding with a KrakenSDR (Heimdall DAQ cl
 
 # Other options
 option(USE_INTERNAL_LIBCORRECT "Use an internal version of libcorrect" ON)
-option(USE_BUNDLE_DEFAULTS "Set the default resource and module directories to the right ones for a MacOS .app" OFF)
+option(USE_BUNDLE_DEFAULTS "Set the default resource and module directories to the right ones for a MacOS .app" ${DEFAULT_USE_BUNDLE_DEFAULTS})
 option(COPY_MSVC_REDISTRIBUTABLES "Copy over the Visual C++ Redistributable" OFF)
 
 # Module cmake path

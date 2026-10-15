@@ -61,10 +61,13 @@ namespace core {
 int sdrpp_main(int argc, char* argv[]) {
     flog::info("SDRSentinel v" VERSION_STR);
 
-#ifdef IS_MACOS_BUNDLE
+#if defined(IS_MACOS_BUNDLE) || defined(__APPLE__)
     // If this is a MacOS .app, CD to the correct directory
     auto execPath = std::filesystem::absolute(argv[0]);
-    chdir(execPath.parent_path().string().c_str());
+    if (execPath.parent_path().filename() == "MacOS" &&
+        execPath.parent_path().parent_path().filename() == "Contents") {
+        chdir(execPath.parent_path().string().c_str());
+    }
 #endif
 
     // Define command line options and parse arguments
@@ -288,15 +291,15 @@ int sdrpp_main(int argc, char* argv[]) {
 #if defined(_WIN32)
     defConfig["modulesDirectory"] = "./modules";
     defConfig["resourcesDirectory"] = "./res";
-#elif defined(IS_MACOS_BUNDLE)
+#elif defined(IS_MACOS_BUNDLE) || defined(__APPLE__)
     defConfig["modulesDirectory"] = "../Plugins";
     defConfig["resourcesDirectory"] = "../Resources";
 #elif defined(__ANDROID__)
     defConfig["modulesDirectory"] = root + "/modules";
     defConfig["resourcesDirectory"] = root + "/res";
 #else
-    defConfig["modulesDirectory"] = INSTALL_PREFIX "/lib/sdrpp/plugins";
-    defConfig["resourcesDirectory"] = INSTALL_PREFIX "/share/sdrpp";
+    defConfig["modulesDirectory"] = INSTALL_PREFIX "/lib/sdrsentinel/plugins";
+    defConfig["resourcesDirectory"] = INSTALL_PREFIX "/share/sdrsentinel";
 #endif
 
     // Load config
@@ -388,8 +391,38 @@ int sdrpp_main(int argc, char* argv[]) {
     // Assert that the resource directory is absolute and check existence
     resDir = std::filesystem::absolute(resDir).string();
     if (!std::filesystem::is_directory(resDir)) {
-        flog::error("Resource directory \"{0}\" doesn't exist! Please make sure that you've configured it correctly in config.json (check readme for details)", resDir);
-        return 1;
+        if (std::filesystem::is_directory("../Resources")) {
+            resDir = std::filesystem::absolute("../Resources").string();
+            flog::warn("Configured resource directory not found; falling back to bundle resources: {0}", resDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = "../Resources";
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("./root/res")) {
+            resDir = std::filesystem::absolute("./root/res").string();
+            flog::warn("Configured resource directory not found; falling back to ./root/res: {0}", resDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = resDir;
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("../root/res")) {
+            resDir = std::filesystem::absolute("../root/res").string();
+            flog::warn("Configured resource directory not found; falling back to ../root/res: {0}", resDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = resDir;
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("./res")) {
+            resDir = std::filesystem::absolute("./res").string();
+            flog::warn("Configured resource directory not found; falling back to ./res: {0}", resDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = resDir;
+            core::configManager.release(true);
+        }
+        else {
+            flog::error("Resource directory \"{0}\" doesn't exist! Please make sure that you've configured it correctly in config.json (check readme for details)", resDir);
+            return 1;
+        }
     }
 
     // Initialize backend

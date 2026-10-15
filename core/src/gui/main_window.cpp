@@ -46,6 +46,47 @@ void MainWindow::init() {
     modulesDir = std::filesystem::absolute(modulesDir).string();
     resourcesDir = std::filesystem::absolute(resourcesDir).string();
 
+    if (!std::filesystem::is_directory(modulesDir)) {
+        if (std::filesystem::is_directory("../Plugins")) {
+            modulesDir = std::filesystem::absolute("../Plugins").string();
+            flog::warn("Configured modules directory not found; falling back to bundle plugins: {0}", modulesDir);
+            core::configManager.acquire();
+            core::configManager.conf["modulesDirectory"] = "../Plugins";
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("./modules")) {
+            modulesDir = std::filesystem::absolute("./modules").string();
+            flog::warn("Configured modules directory not found; falling back to ./modules: {0}", modulesDir);
+            core::configManager.acquire();
+            core::configManager.conf["modulesDirectory"] = modulesDir;
+            core::configManager.release(true);
+        }
+    }
+
+    if (!std::filesystem::is_directory(resourcesDir)) {
+        if (std::filesystem::is_directory("../Resources")) {
+            resourcesDir = std::filesystem::absolute("../Resources").string();
+            flog::warn("Configured resources directory not found; falling back to bundle resources: {0}", resourcesDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = "../Resources";
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("./root/res")) {
+            resourcesDir = std::filesystem::absolute("./root/res").string();
+            flog::warn("Configured resources directory not found; falling back to ./root/res: {0}", resourcesDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = resourcesDir;
+            core::configManager.release(true);
+        }
+        else if (std::filesystem::is_directory("../root/res")) {
+            resourcesDir = std::filesystem::absolute("../root/res").string();
+            flog::warn("Configured resources directory not found; falling back to ../root/res: {0}", resourcesDir);
+            core::configManager.acquire();
+            core::configManager.conf["resourcesDirectory"] = resourcesDir;
+            core::configManager.release(true);
+        }
+    }
+
     // Load menu elements
     gui::menu.order.clear();
     for (auto& elem : menuElements) {
