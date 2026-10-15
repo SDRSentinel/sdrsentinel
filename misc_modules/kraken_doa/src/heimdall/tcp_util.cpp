@@ -80,7 +80,11 @@ namespace kraken_doa::heimdall::tcp {
                 int n = select((int)s + 1, nullptr, &wf, nullptr, &tv);
                 if (n > 0) {
                     int soerr = 0;
+#ifdef _WIN32
+                    int l = sizeof(soerr);
+#else
                     socklen_t l = sizeof(soerr);
+#endif
                     getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&soerr, &l);
                     ok = (soerr == 0);
                     if (!ok) { err = std::string("connect failed: ") + std::strerror(soerr); }

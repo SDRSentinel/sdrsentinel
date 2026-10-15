@@ -18,6 +18,10 @@ if (NOT DEFINED CMAKE_TOOLCHAIN_FILE)
 endif ()
 
 project(sdrpp)
+enable_testing()
+if (MSVC)
+    add_compile_definitions(_USE_MATH_DEFINES)
+endif ()
 
 # Backends
 option(OPT_BACKEND_GLFW "Use the GLFW backend" ON)
@@ -385,6 +389,20 @@ if (OPT_BUILD_KRAKEN_DOA)
 add_subdirectory("misc_modules/kraken_doa")
 endif (OPT_BUILD_KRAKEN_DOA)
 
+foreach(TEST_TARGET IN ITEMS
+    test_root_dev_integration
+    test_rf_tools_pulse_detector
+    test_rf_tools_resonator
+    test_kraken_heimdall_header
+    test_kraken_heimdall_client
+    test_kraken_doa_dsp
+    test_kraken_doa_pipeline)
+    if (TARGET ${TEST_TARGET})
+        add_test(NAME ${TEST_TARGET} COMMAND $<TARGET_FILE:${TEST_TARGET}>)
+        set_tests_properties(${TEST_TARGET} PROPERTIES TIMEOUT 120 LABELS sdrsentinel)
+    endif ()
+endforeach()
+
 if (MSVC)
     add_executable(sdrpp "src/main.cpp" "win32/resources.rc")
 else ()
@@ -398,24 +416,26 @@ target_compile_options(sdrpp PRIVATE ${SDRPP_COMPILER_FLAGS})
 
 # Copy dynamic libs over
 if (MSVC)
-    add_custom_target(do_always ALL xcopy /s \"$<TARGET_FILE_DIR:sdrpp_core>\\*.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
-    add_custom_target(do_always_volk ALL xcopy /s \"$<TARGET_FILE_DIR:volk>\\*.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
-    add_custom_target(do_always_zstd ALL xcopy /s \"$<TARGET_FILE_DIR:libzstd_shared>\\*.dll\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
-    add_custom_target(do_always_root ALL xcopy /s \"${CMAKE_SOURCE_DIR}\\root\"  \"$<TARGET_FILE_DIR:sdrpp>\" /Y)
+    # vcpkg copies its DLLs beside each target. Pothos dependencies are collected
+    # by the Windows packager from the actual PE imports.
+    add_custom_command(TARGET sdrpp POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:sdrpp_core> $<TARGET_FILE_DIR:sdrpp>
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/root" $<TARGET_FILE_DIR:sdrpp>
+        VERBATIM)
 
     if (COPY_MSVC_REDISTRIBUTABLES)
         # Get the list of Visual C++ runtime DLLs
         set(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_SKIP True)
         include(InstallRequiredSystemLibraries)
 
-        # Create a space sperated list
-        set(REDIST_DLLS_STR "")
         foreach(DLL IN LISTS CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS)
-            set(REDIST_DLLS_STR COMMAND xcopy /F \"${DLL}\" \"$<TARGET_FILE_DIR:sdrpp>\" /Y ${REDIST_DLLS_STR})
+            add_custom_command(TARGET sdrpp POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${DLL}" $<TARGET_FILE_DIR:sdrpp>
+                VERBATIM)
         endforeach()
-        
-        # Create target
-        add_custom_target(do_always_msvc ALL ${REDIST_DLLS_STR})
     endif ()
 endif ()
 

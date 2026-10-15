@@ -2,85 +2,123 @@ name: SDRSentinel Package Builds (Windows, macOS, Ubuntu)
 
 on:
   push:
-    branches:
-      - master
-    tags:
-      - 'v*'
+    branches: [master]
+    tags: ['v*']
   pull_request:
-    branches:
-      - master
+    branches: [master]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 env:
   BUILD_TYPE: Release
 
 jobs:
-  # ==========================================
-  # Windows Package Build (vcpkg x64)
-  # ==========================================
+  validate-version:
+    name: Validate Package Version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check manifest and release tag against application version
+        shell: bash
+        run: |
+          version=$(sed -n 's/^#define VERSION_STR "\([^"]*\)".*/\1/p' core/src/version.h)
+          test -n "$version"
+          test "$(jq -r '."version-string"' vcpkg.json)" = "$version"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            test "$GITHUB_REF_NAME" = "v$version"
+          fi
+      - name: Test Debian packaging success and failure paths
+        run: sh packaging/linux/tests/test_make_debian_package.sh
+
   package-windows:
     name: Windows x64 Package
-    runs-on: windows-latest
+    needs: validate-version
+    runs-on: windows-2022
     steps:
-      - name: Checkout Repository
+      - uses: actions/checkout@v4
+
+      - name: Checkout vcpkg
         uses: actions/checkout@v4
-
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: '2024.01.12'
+          repository: microsoft/vcpkg
+          ref: 9e593bb18ea69cc5095e012465dcd675a822ed0d
+          path: .vcpkg
 
-      - name: Configure CMake (vcpkg manifest)
-        run: >
+      - name: Bootstrap vcpkg
+        run: ./.vcpkg/bootstrap-vcpkg.bat -disableMetrics
+
+      # The MSVC hardware modules and VOLK currently use PothosSDR paths.
+      - name: Install PothosSDR SDK
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.myriadrf.org/builds/PothosSDR/PothosSDR-2020.01.26-vc14-x64.exe" -OutFile "$env:RUNNER_TEMP/pothos.exe"
+          New-Item -ItemType Directory -Force "C:/Program Files/PothosSDR" | Out-Null
+          7z x "$env:RUNNER_TEMP/pothos.exe" '-oC:/Program Files/PothosSDR/' -y
+          if ($LASTEXITCODE -ne 0) { throw "PothosSDR extraction failed" }
+
+      - name: Configure CMake
+        run: >-
           cmake -B build -S .
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake"
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/.vcpkg/scripts/buildsystems/vcpkg.cmake"
           -DVCPKG_TARGET_TRIPLET=x64-windows
           -DOPT_BUILD_RF_TOOLS=ON
           -DOPT_BUILD_KRAKEN_DOA=ON
+          -DOPT_BUILD_AUDIO_SOURCE=OFF
+          -DOPT_BUILD_AUDIO_SINK=OFF
+          -DOPT_BUILD_PORTAUDIO_SINK=ON
+          -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON
+          -DOPT_BUILD_PLUTOSDR_SOURCE=OFF
+          -DOPT_BUILD_USRP_SOURCE=OFF
           -DCOPY_MSVC_REDISTRIBUTABLES=ON
 
       - name: Build
-        run: cmake --build build --config Release --parallel
+        run: cmake --build build --config Release --parallel 3
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:GITHUB_WORKSPACE/build/Release;$env:GITHUB_WORKSPACE/build/vcpkg_installed/x64-windows/bin;C:/Program Files/PothosSDR/bin;$env:PATH"
+          ctest --test-dir build -L sdrsentinel -C Release --output-on-failure --no-tests=error
+          if ($LASTEXITCODE -ne 0) { throw "CTest failed" }
 
       - name: Package Windows Binary
-        run: powershell -ExecutionPolicy Bypass -File ./packaging/windows/make_windows_package.ps1 ./build ./root
+        run: ./packaging/windows/make_windows_package.ps1 ./build ./root
 
-      - name: Upload Windows Package Artifact
+      - name: Upload Windows Package
         uses: actions/upload-artifact@v4
         with:
           name: sdrsentinel-windows-x64
-          path: |
-            sdrsentinel_windows_x64.zip
-            sdrpp_windows_x64.zip
+          path: sdrsentinel_windows_x64.zip
+          if-no-files-found: error
 
-  # ==========================================
-  # macOS App Bundle Package (arm64 & x86_64)
-  # ==========================================
   package-macos:
     name: macOS Package (${{ matrix.arch }})
+    needs: validate-version
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          - os: macos-15
             arch: arm64
-          - os: macos-13
+          - os: macos-15-intel
             arch: x86_64
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Dependencies
-        run: |
-          brew update
-          brew install pkg-config libusb fftw glfw eigen portaudio zstd ninja
+        run: brew install pkg-config fftw glfw eigen portaudio zstd ninja volk airspy airspyhf hackrf librtlsdr libusb
 
       - name: Configure CMake
-        run: >
+        run: >-
           cmake -B build -S . -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }}
           -DOPT_BUILD_RF_TOOLS=ON
           -DOPT_BUILD_KRAKEN_DOA=ON
           -DOPT_BUILD_PORTAUDIO_SINK=ON
@@ -88,90 +126,137 @@ jobs:
           -DUSE_BUNDLE_DEFAULTS=ON
 
       - name: Build
-        run: ninja -C build
+        run: cmake --build build --parallel 3
+
+      - name: Run tests
+        run: ctest --test-dir build -L sdrsentinel --output-on-failure --no-tests=error
 
       - name: Create macOS App Bundle
         run: |
           sh packaging/macos/make_macos_bundle.sh build ./SDRSentinel.app
-          zip -r "sdrsentinel-macos-${{ matrix.arch }}.zip" SDRSentinel.app
+          codesign --verify --deep --strict SDRSentinel.app
+          ditto -c -k --sequesterRsrc --keepParent SDRSentinel.app "sdrsentinel-macos-${{ matrix.arch }}.zip"
 
-      - name: Upload macOS Package Artifact
+      - name: Upload macOS Package
         uses: actions/upload-artifact@v4
         with:
           name: sdrsentinel-macos-${{ matrix.arch }}
           path: sdrsentinel-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error
 
-  # ==========================================
-  # Ubuntu Package Build (.deb for 22.04 & 24.04)
-  # ==========================================
   package-ubuntu:
     name: Ubuntu Package (${{ matrix.distro }})
+    needs: validate-version
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
             distro: noble
+            version: '24.04'
+            volk_package: libvolk-dev
           - runner: ubuntu-22.04
             distro: jammy
+            version: '22.04'
+            volk_package: libvolk2-dev
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Build Dependencies
         run: |
-          sudo apt-get update -y
+          sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            libfftw3-dev libglfw3-dev libvolk2-dev libzstd-dev \
+            libfftw3-dev libglfw3-dev ${{ matrix.volk_package }} libzstd-dev \
             libairspy-dev libairspyhf-dev libhackrf-dev librtlsdr-dev \
-            libportaudio2 portaudio19-dev libeigen3-dev libusb-1.0-0-dev
+            portaudio19-dev libeigen3-dev libusb-1.0-0-dev \
+            python3-numpy python3-h5py
 
       - name: Configure CMake
-        run: >
+        run: >-
           cmake -B build -S . -G Ninja
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           -DOPT_BUILD_RF_TOOLS=ON
           -DOPT_BUILD_KRAKEN_DOA=ON
+          -DOPT_BUILD_AUDIO_SOURCE=OFF
+          -DOPT_BUILD_AUDIO_SINK=OFF
           -DOPT_BUILD_PORTAUDIO_SINK=ON
           -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON
+          -DOPT_BUILD_PLUTOSDR_SOURCE=OFF
+          -DOPT_BUILD_USRP_SOURCE=OFF
           -DCMAKE_INSTALL_PREFIX=/usr
 
       - name: Build
-        run: ninja -C build
+        run: cmake --build build --parallel 3
 
-      - name: Create Debian / Ubuntu Package
+      - name: Run tests
+        run: ctest --test-dir build -L sdrsentinel --output-on-failure --no-tests=error
+
+      - name: Verify PDW binary and HDF5 round trip
+        run: /usr/bin/python3 misc_modules/rf_tools/tests/test_pdw_roundtrip.py build/test_output/pdw_test.pdwbin
+
+      - name: Create and inspect Ubuntu Package
         run: |
-          BUILD_NO="-${{ github.run_number }}" sh packaging/linux/make_debian_package.sh build "libfftw3-bin, libglfw3, libportaudio2, libzstd1, libusb-1.0-0"
+          volk_runtime=$(dpkg-query -W -f='${Depends}' '${{ matrix.volk_package }}' | tr ',' '\n' | awk '/libvolk[^ ]*:/ || /libvolk[^ ]* / {print $1; exit}' | cut -d: -f1)
+          rtl_runtime=$(dpkg-query -W -f='${Depends}' librtlsdr-dev | tr ',' '\n' | awk '/librtlsdr[^ ]*:/ || /librtlsdr[^ ]* / {print $1; exit}' | cut -d: -f1)
+          test -n "$volk_runtime"
+          test -n "$rtl_runtime"
+          deps="libc6, libstdc++6, libgcc-s1, libfftw3-single3, libglfw3, libopengl0, libportaudio2, libzstd1, libusb-1.0-0, libairspy0, libairspyhf1, libhackrf0, $rtl_runtime, $volk_runtime"
+          sh packaging/linux/make_debian_package.sh build "$deps"
           mv sdrsentinel_debian_amd64.deb "sdrsentinel_ubuntu_${{ matrix.distro }}_amd64.deb"
+          dpkg-deb --info "sdrsentinel_ubuntu_${{ matrix.distro }}_amd64.deb"
 
-      - name: Upload Ubuntu Package Artifact
+      - name: Verify installation in a clean Ubuntu image
+        run: |
+          docker run --rm --volume "$PWD:/packages:ro" \
+            --env PACKAGE_FILE="sdrsentinel_ubuntu_${{ matrix.distro }}_amd64.deb" \
+            ubuntu:${{ matrix.version }} sh -ec '
+              apt-get update
+              apt-get install -y "/packages/$PACKAGE_FILE"
+              sdrpp --help
+              linkage=$(ldd /usr/bin/sdrpp /usr/lib/libsdrpp_core.so /usr/lib/sdrpp/plugins/*.so)
+              printf "%s\n" "$linkage"
+              if printf "%s\n" "$linkage" | grep -q "not found"; then
+                exit 1
+              fi
+            '
+
+      - name: Upload Ubuntu Package
         uses: actions/upload-artifact@v4
         with:
           name: sdrsentinel-ubuntu-${{ matrix.distro }}-amd64
           path: sdrsentinel_ubuntu_${{ matrix.distro }}_amd64.deb
+          if-no-files-found: error
 
-  # ==========================================
-  # GitHub Release Publishing (on Tag)
-  # ==========================================
   publish-release:
     name: Publish Release Packages
     needs: [package-windows, package-macos, package-ubuntu]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
     steps:
-      - name: Download All Package Artifacts
+      - name: Download Package Artifacts
         uses: actions/download-artifact@v4
         with:
+          pattern: sdrsentinel-*
+          merge-multiple: true
           path: release_assets
 
+      - name: Verify assets and create checksums
+        working-directory: release_assets
+        run: |
+          for asset in sdrsentinel_windows_x64.zip sdrsentinel-macos-arm64.zip sdrsentinel-macos-x86_64.zip sdrsentinel_ubuntu_jammy_amd64.deb sdrsentinel_ubuntu_noble_amd64.deb; do
+            test -s "$asset"
+          done
+          sha256sum ./*.zip ./*.deb > SHA256SUMS
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release_assets/**/*
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" release_assets/*
+          --verify-tag --title "SDRSentinel $GITHUB_REF_NAME" --generate-notes

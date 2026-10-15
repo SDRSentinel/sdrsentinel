@@ -92,7 +92,8 @@ def main():
         assert hf.attrs["time_py"] == "2023-11-14T22:13:20Z", hf.attrs["time_py"]
 
         top = [k for k in hf.keys() if k != "sdrpp"]
-        assert top == gr_pdw_datasets, f"Dataset names/order mismatch: {top}"
+        # Dataset names define the layout; HDF5 link iteration order is not part of it.
+        assert set(top) == set(gr_pdw_datasets), f"Dataset names mismatch: {top}"
         for ds_name in gr_pdw_datasets:
             ds = hf[ds_name]
             assert ds.dtype == np.float64, f"{ds_name} dtype {ds.dtype}"

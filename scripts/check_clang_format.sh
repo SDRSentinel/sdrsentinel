@@ -5,8 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
+command -v clang-format >/dev/null 2>&1 || {
+    echo "clang-format is required" >&2
+    exit 1
+}
+
 echo "Searching directories for C/C++ source files..."
-CODE_FILES=$(find . -iregex '.*\.\(h\|hpp\|c\|cpp\)$')
+CODE_FILES=$(git ls-files -- '*.h' '*.hpp' '*.c' '*.cpp' | sed 's|^|./|')
 while read -r CPP_FILE_PATH; do
     [ -z "$CPP_FILE_PATH" ] && continue
 
@@ -24,7 +29,7 @@ while read -r CPP_FILE_PATH; do
     if [ "$CPP_FILE_PATH" = "./core/src/gui/file_dialogs.h" ]; then continue; fi
 
     echo "Checking $CPP_FILE_PATH"
-    clang-format --style=file -i -n -Werror "$CPP_FILE_PATH"
+    clang-format --style=file --dry-run -Werror "$CPP_FILE_PATH"
 done <<< "$CODE_FILES"
 
 echo "All files checked successfully!"

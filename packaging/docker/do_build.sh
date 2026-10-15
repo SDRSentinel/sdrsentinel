@@ -11,7 +11,7 @@ DEPS=(
     libairspyhf-dev libairspy-dev libiio-dev libad9361-dev librtaudio-dev
     libhackrf-dev librtlsdr-dev libbladerf-dev liblimesuite-dev p7zip-full
     wget portaudio19-dev libcodec2-dev autoconf libtool xxd libspdlog-dev
-    pkg-config
+    pkg-config libeigen3-dev
 )
 
 # Detect appropriate Volk package name

@@ -31,7 +31,9 @@ namespace kraken_doa {
         }
     }
 
+#if defined(__GNUC__) || defined(__clang__)
     static std::string fmt(const char* f, ...) __attribute__((format(printf, 1, 2)));
+#endif
     static std::string fmt(const char* f, ...) {
         char buf[256];
         va_list ap;

@@ -1,17 +1,14 @@
-name: Build Binaries
+name: Extended Platform Builds (manual)
 
 on:
-    push:
-        branches-ignore:
-        - nightly
-    pull_request:
-        branches-ignore:
-        - nightly
+    workflow_dispatch:
 
 env:
     # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
     BUILD_TYPE: Release
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+    contents: read
 
 jobs:
     build_windows:
@@ -21,33 +18,33 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Build Environment
-          run: cmake -E make_directory ${{runner.workspace}}/build
+          run: cmake -E make_directory ${{runner.temp}}/build
 
         - name: Download PothosSDR
-          run: Invoke-WebRequest -Uri "https://downloads.myriadrf.org/builds/PothosSDR/PothosSDR-2020.01.26-vc14-x64.exe" -OutFile ${{runner.workspace}}/pothos.exe
+          run: Invoke-WebRequest -Uri "https://downloads.myriadrf.org/builds/PothosSDR/PothosSDR-2020.01.26-vc14-x64.exe" -OutFile ${{runner.temp}}/pothos.exe
 
         - name: Install PothosSDR
-          run: mkdir "C:/Program Files/PothosSDR" ; 7z x ${{runner.workspace}}/pothos.exe -o"C:/Program Files/PothosSDR/"
+          run: mkdir "C:/Program Files/PothosSDR" ; 7z x ${{runner.temp}}/pothos.exe -o"C:/Program Files/PothosSDR/"
 
         - name: Download libusb
-          run: Invoke-WebRequest -Uri "https://github.com/libusb/libusb/releases/download/v1.0.23/libusb-1.0.23.7z" -OutFile ${{runner.workspace}}/libusb.7z
+          run: Invoke-WebRequest -Uri "https://github.com/libusb/libusb/releases/download/v1.0.23/libusb-1.0.23.7z" -OutFile ${{runner.temp}}/libusb.7z
 
         - name: Patch Pothos with earlier libusb version
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: 7z x libusb.7z -olibusb_old ; rm "C:/Program Files/PothosSDR/bin/libusb-1.0.dll" ; cp "libusb_old/MS64/dll/libusb-1.0.dll" "C:/Program Files/PothosSDR/bin/" ; rm "C:/Program Files/PothosSDR/lib/libusb-1.0.lib" ; cp "libusb_old/MS64/dll/libusb-1.0.lib" "C:/Program Files/PothosSDR/lib/"
  
         - name: Download librtlsdr
-          run: Invoke-WebRequest -Uri "https://ftp.osmocom.org/binaries/windows/rtl-sdr/rtl-sdr-64bit-20240623.zip" -OutFile ${{runner.workspace}}/rtl-sdr.zip
+          run: Invoke-WebRequest -Uri "https://ftp.osmocom.org/binaries/windows/rtl-sdr/rtl-sdr-64bit-20240623.zip" -OutFile ${{runner.temp}}/rtl-sdr.zip
 
         - name: Patch Pothos with newer librtlsdr version
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: 7z x rtl-sdr.zip ; rm "C:/Program Files/PothosSDR/bin/rtlsdr.dll" ; cp "rtl-sdr-64bit-20240623/librtlsdr.dll" "C:/Program Files/PothosSDR/bin/rtlsdr.dll"
 
         - name: Download SDRPlay API
-          run: Invoke-WebRequest -Uri "https://www.sdrpp.org/SDRplay.zip" -OutFile ${{runner.workspace}}/SDRplay.zip
+          run: Invoke-WebRequest -Uri "https://www.sdrpp.org/SDRplay.zip" -OutFile ${{runner.temp}}/SDRplay.zip
 
         - name: Install SDRPlay API
-          run: 7z x ${{runner.workspace}}/SDRplay.zip -o"C:/Program Files/"
+          run: 7z x ${{runner.temp}}/SDRplay.zip -o"C:/Program Files/"
 
         - name: Download codec2
           run: git clone https://github.com/drowe67/codec2
@@ -65,7 +62,7 @@ jobs:
           run: mkdir "C:/Program Files/codec2" ; mkdir "C:/Program Files/codec2/include" ; mkdir "C:/Program Files/codec2/include/codec2" ; mkdir "C:/Program Files/codec2/lib" ; cd "codec2" ; xcopy "src" "C:/Program Files/codec2/include" ; cd "build" ; xcopy "src" "C:/Program Files/codec2/lib" ; xcopy "codec2" "C:/Program Files/codec2/include/codec2"
 
         - name: Install vcpkg dependencies
-          run: vcpkg install fftw3:x64-windows glfw3:x64-windows portaudio:x64-windows zstd:x64-windows libusb:x64-windows spdlog:x64-windows
+          run: vcpkg install --classic fftw3:x64-windows glfw3:x64-windows portaudio:x64-windows zstd:x64-windows libusb:x64-windows spdlog:x64-windows
 
         - name: Install rtaudio
           run: git clone https://github.com/thestk/rtaudio ; cd rtaudio ; git checkout 2f2fca4502d506abc50f6d4473b2836d24cfb1e3 ; mkdir build ; cd build ; cmake .. ; cmake --build . --config Release ; cmake --install .
@@ -83,22 +80,22 @@ jobs:
           run: git clone https://github.com/hydrasdr/rfone_host; cd rfone_host/ ; mkdir build ; cd build ; cmake .. -DCMAKE_BUILD_TYPE=Release "-DLIBUSB_LIBRARIES=C:\Program Files\PothosSDR\lib\libusb-1.0.lib" "-DLIBUSB_INCLUDE_DIR=C:\Program Files\PothosSDR\include\libusb-1.0" "-DTHREADS_PTHREADS_WIN32_LIBRARY=C:\Program Files\PothosSDR\lib\pthreadVC2.lib" "-DTHREADS_PTHREADS_INCLUDE_DIR=C:\Program Files\PothosSDR\include" ; cmake --build . --config Release ; cmake --install .
 
         - name: Prepare CMake
-          working-directory: ${{runner.workspace}}/build
+          working-directory: ${{runner.temp}}/build
           run: cmake -DCOPY_MSVC_REDISTRIBUTABLES=ON "$Env:GITHUB_WORKSPACE" "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_LIMESDR_SOURCE=ON -DOPT_BUILD_PERSEUS_SOURCE=ON -DOPT_BUILD_SDRPLAY_SOURCE=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=ON -DOPT_BUILD_RFNM_SOURCE=ON -DOPT_BUILD_FOBOSSDR_SOURCE=ON -DOPT_BUILD_HYDRASDR_SOURCE=ON -DOPT_BUILD_RF_TOOLS=ON -DOPT_BUILD_KRAKEN_DOA=ON
 
         - name: Build
-          working-directory: ${{runner.workspace}}/build
+          working-directory: ${{runner.temp}}/build
           run: cmake --build . --config Release --verbose
 
         - name: Create Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: '&($Env:GITHUB_WORKSPACE + "/packaging/windows/make_windows_package.ps1") ./build ($Env:GITHUB_WORKSPACE + "/root")'
 
         - name: Save Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_windows_x64
-              path: ${{runner.workspace}}/sdrpp_windows_x64.zip
+              path: ${{runner.temp}}/sdrpp_windows_x64.zip
 
     build_macos_intel:
         runs-on: macos-15-intel
@@ -107,7 +104,7 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Build Environment
-          run: cmake -E make_directory ${{runner.workspace}}/build
+          run: cmake -E make_directory ${{runner.temp}}/build
 
         - name: Install dependencies
           run: brew install pkg-config libusb fftw glfw airspy airspyhf portaudio hackrf libbladerf codec2 zstd autoconf automake libtool spdlog && pip3 install mako --break-system-packages
@@ -137,7 +134,7 @@ jobs:
           run: git clone https://github.com/AlexandreRouma/libfobos && cd libfobos && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make && sudo make install && cd ..
 
         - name: Install more recent librtlsdr
-          run: git clone https://github.com/osmocom/rtl-sdr && cd rtl-sdr && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 LIBRARY_PATH=$(pkg-config --libs-only-L libusb-1.0 | sed 's/\-L//') && sudo make install && cd ../../
+          run: git clone https://github.com/osmocom/rtl-sdr && cd rtl-sdr && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 LIBRARY_PATH="$(pkg-config --libs-only-L libusb-1.0 | sed 's/\-L//')" && sudo make install && cd ../../
 
         - name: Install libhydrasdr
           run: git clone https://github.com/hydrasdr/rfone_host && cd rfone_host && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 && sudo make install && cd ../../
@@ -146,22 +143,22 @@ jobs:
           run: wget https://dragnlabs.com/host-tools/dlcr_host_v0.3.0.zip && mkdir dlcr_host && cd dlcr_host && 7z x ../dlcr_host_v0.3.0.zip && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 .. -DCMAKE_BUILD_TYPE=Release && make -j2 && sudo make install && cd ../../
 
         - name: Prepare CMake
-          working-directory: ${{runner.workspace}}/build
-          run: cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 $GITHUB_WORKSPACE -DOPT_BUILD_PLUTOSDR_SOURCE=ON -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_SDRPLAY_SOURCE=ON -DOPT_BUILD_LIMESDR_SOURCE=ON -DOPT_BUILD_AUDIO_SINK=OFF -DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=ON -DOPT_BUILD_PERSEUS_SOURCE=ON -DOPT_BUILD_AUDIO_SOURCE=OFF -DOPT_BUILD_RFNM_SOURCE=ON -DOPT_BUILD_FOBOSSDR_SOURCE=ON  -DOPT_BUILD_HYDRASDR_SOURCE=ON -DOPT_BUILD_DRAGONLABS_SOURCE=ON -DUSE_BUNDLE_DEFAULTS=ON -DCMAKE_BUILD_TYPE=Release -DOPT_BUILD_RF_TOOLS=ON -DOPT_BUILD_KRAKEN_DOA=ON
+          working-directory: ${{runner.temp}}/build
+          run: cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 "$GITHUB_WORKSPACE" -DOPT_BUILD_PLUTOSDR_SOURCE=ON -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_SDRPLAY_SOURCE=ON -DOPT_BUILD_LIMESDR_SOURCE=ON -DOPT_BUILD_AUDIO_SINK=OFF -DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=ON -DOPT_BUILD_PERSEUS_SOURCE=ON -DOPT_BUILD_AUDIO_SOURCE=OFF -DOPT_BUILD_RFNM_SOURCE=ON -DOPT_BUILD_FOBOSSDR_SOURCE=ON  -DOPT_BUILD_HYDRASDR_SOURCE=ON -DOPT_BUILD_DRAGONLABS_SOURCE=ON -DUSE_BUNDLE_DEFAULTS=ON -DCMAKE_BUILD_TYPE=Release -DOPT_BUILD_RF_TOOLS=ON -DOPT_BUILD_KRAKEN_DOA=ON
 
         - name: Build
-          working-directory: ${{runner.workspace}}/build
+          working-directory: ${{runner.temp}}/build
           run: make VERBOSE=1 -j3
 
         - name: Create Archive
-          working-directory: ${{runner.workspace}}
-          run: cd $GITHUB_WORKSPACE && sh packaging/macos/make_macos_bundle.sh ${{runner.workspace}}/build ./SDRSentinel.app && zip -r ${{runner.workspace}}/sdrpp_macos_intel.zip SDRSentinel.app
+          working-directory: ${{runner.temp}}
+          run: cd "$GITHUB_WORKSPACE" && sh packaging/macos/make_macos_bundle.sh ${{runner.temp}}/build ./SDRSentinel.app && zip -r ${{runner.temp}}/sdrpp_macos_intel.zip SDRSentinel.app
 
         - name: Save Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_macos_intel
-              path: ${{runner.workspace}}/sdrpp_macos_intel.zip
+              path: ${{runner.temp}}/sdrpp_macos_intel.zip
 
     build_macos_arm:
         runs-on: macos-15
@@ -170,7 +167,7 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Build Environment
-          run: cmake -E make_directory ${{runner.workspace}}/build
+          run: cmake -E make_directory ${{runner.temp}}/build
 
         - name: Install dependencies
           run: brew install pkg-config libusb fftw glfw airspy airspyhf portaudio hackrf libbladerf codec2 zstd autoconf automake libtool spdlog && pip3 install mako --break-system-packages
@@ -200,7 +197,7 @@ jobs:
           run: git clone https://github.com/AlexandreRouma/libfobos && cd libfobos && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && make && sudo make install && cd ..
 
         - name: Install more recent librtlsdr
-          run: git clone https://github.com/osmocom/rtl-sdr && cd rtl-sdr && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 LIBRARY_PATH=$(pkg-config --libs-only-L libusb-1.0 | sed 's/\-L//') && sudo make install && cd ../../
+          run: git clone https://github.com/osmocom/rtl-sdr && cd rtl-sdr && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 LIBRARY_PATH="$(pkg-config --libs-only-L libusb-1.0 | sed 's/\-L//')" && sudo make install && cd ../../
 
         - name: Install libhydrasdr
           run: git clone https://github.com/hydrasdr/rfone_host && cd rfone_host && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 -DCMAKE_BUILD_TYPE=Release .. && make -j3 && sudo make install && cd ../../
@@ -209,22 +206,22 @@ jobs:
           run: wget https://dragnlabs.com/host-tools/dlcr_host_v0.3.0.zip && mkdir dlcr_host && cd dlcr_host && 7z x ../dlcr_host_v0.3.0.zip && mkdir build && cd build && cmake -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 .. -DCMAKE_BUILD_TYPE=Release && make -j2 && sudo make install && cd ../../
 
         - name: Prepare CMake
-          working-directory: ${{runner.workspace}}/build
-          run: cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 $GITHUB_WORKSPACE -DOPT_BUILD_PLUTOSDR_SOURCE=ON -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_SDRPLAY_SOURCE=ON -DOPT_BUILD_LIMESDR_SOURCE=ON -DOPT_BUILD_AUDIO_SINK=OFF -DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=OFF -DOPT_BUILD_PERSEUS_SOURCE=OFF -DOPT_BUILD_AUDIO_SOURCE=OFF -DOPT_BUILD_RFNM_SOURCE=ON -DOPT_BUILD_FOBOSSDR_SOURCE=ON -DOPT_BUILD_HYDRASDR_SOURCE=ON -DOPT_BUILD_DRAGONLABS_SOURCE=ON -DUSE_BUNDLE_DEFAULTS=ON -DCMAKE_BUILD_TYPE=Release -DOPT_BUILD_RF_TOOLS=ON -DOPT_BUILD_KRAKEN_DOA=ON
+          working-directory: ${{runner.temp}}/build
+          run: cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 "$GITHUB_WORKSPACE" -DOPT_BUILD_PLUTOSDR_SOURCE=ON -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_SDRPLAY_SOURCE=ON -DOPT_BUILD_LIMESDR_SOURCE=ON -DOPT_BUILD_AUDIO_SINK=OFF -DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=OFF -DOPT_BUILD_PERSEUS_SOURCE=OFF -DOPT_BUILD_AUDIO_SOURCE=OFF -DOPT_BUILD_RFNM_SOURCE=ON -DOPT_BUILD_FOBOSSDR_SOURCE=ON -DOPT_BUILD_HYDRASDR_SOURCE=ON -DOPT_BUILD_DRAGONLABS_SOURCE=ON -DUSE_BUNDLE_DEFAULTS=ON -DCMAKE_BUILD_TYPE=Release -DOPT_BUILD_RF_TOOLS=ON -DOPT_BUILD_KRAKEN_DOA=ON
 
         - name: Build
-          working-directory: ${{runner.workspace}}/build
+          working-directory: ${{runner.temp}}/build
           run: make VERBOSE=1 -j3
 
         - name: Create Archive
-          working-directory: ${{runner.workspace}}
-          run: cd $GITHUB_WORKSPACE && sh packaging/macos/make_macos_bundle.sh ${{runner.workspace}}/build ./SDRSentinel.app && zip -r ${{runner.workspace}}/sdrpp_macos_arm.zip SDRSentinel.app
+          working-directory: ${{runner.temp}}
+          run: cd "$GITHUB_WORKSPACE" && sh packaging/macos/make_macos_bundle.sh ${{runner.temp}}/build ./SDRSentinel.app && zip -r ${{runner.temp}}/sdrpp_macos_arm.zip SDRSentinel.app
 
         - name: Save Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_macos_arm
-              path: ${{runner.workspace}}/sdrpp_macos_arm.zip
+              path: ${{runner.temp}}/sdrpp_macos_arm.zip
 
     build_debian_bullseye_amd64:
         runs-on: ubuntu-latest
@@ -233,20 +230,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:bullseye . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:bullseye . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_bullseye_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_bullseye_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -255,20 +252,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:bullseye . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:bullseye . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_bullseye_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_bookworm_amd64:
         runs-on: ubuntu-latest
@@ -277,20 +274,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:bookworm . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:bookworm . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_bookworm_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_bookworm_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -299,20 +296,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:bookworm . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:bookworm . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_bookworm_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_trixie_amd64:
         runs-on: ubuntu-latest
@@ -321,20 +318,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:trixie . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:trixie . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_trixie_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_trixie_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -343,20 +340,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:trixie . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:trixie . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_trixie_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_sid_amd64:
         runs-on: ubuntu-latest
@@ -365,20 +362,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:sid . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:sid . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_sid_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_debian_sid_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -387,20 +384,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=debian:sid . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=debian:sid . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_debian_sid_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_focal_amd64:
         runs-on: ubuntu-latest
@@ -409,20 +406,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:focal . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:focal . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_focal_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_focal_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -431,20 +428,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:focal . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:focal . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_focal_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_jammy_amd64:
         runs-on: ubuntu-latest
@@ -453,20 +450,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:jammy . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:jammy . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_jammy_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_jammy_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -475,20 +472,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:jammy . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:jammy . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_jammy_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_noble_amd64:
         runs-on: ubuntu-latest
@@ -497,20 +494,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:noble . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:noble . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_noble_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_noble_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -519,20 +516,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:noble . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:noble . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_noble_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
 
 
@@ -543,20 +540,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:resolute . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:resolute . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_resolute_amd64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
 
     build_ubuntu_resolute_aarch64:
         runs-on: ubuntu-24.04-arm
@@ -565,20 +562,20 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Create Docker Image
-          run: cd $GITHUB_WORKSPACE/packaging/docker && docker build --build-arg BASE_IMAGE=ubuntu:resolute . --tag sdrpp_build
+          run: cd "$GITHUB_WORKSPACE/packaging/docker" && docker build --build-arg BASE_IMAGE=ubuntu:resolute . --tag sdrpp_build
 
         - name: Run Container
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" --env BUILD_NO="-$GITHUB_RUN_NUMBER" sdrpp_build /root/do_build.sh
 
         - name: Recover Deb Archive
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/sdrpp_debian_amd64.deb ./
 
         - name: Save Deb Archive
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_ubuntu_resolute_aarch64
-              path: ${{runner.workspace}}/sdrpp_debian_amd64.deb
+              path: ${{runner.temp}}/sdrpp_debian_amd64.deb
   
 
     build_android:
@@ -588,25 +585,25 @@ jobs:
         - uses: actions/checkout@v4
 
         - name: Fetch container
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: git clone https://github.com/AlexandreRouma/android-sdr-kit
         
         - name: Build container
-          working-directory: ${{runner.workspace}}/android-sdr-kit
+          working-directory: ${{runner.temp}}/android-sdr-kit
           run: docker build --progress=plain -t android-sdr-kit .
 
         - name: Build
-          run: docker run --name build -v $GITHUB_WORKSPACE:/root/SDRPlusPlus android-sdr-kit /bin/bash -l -c "cd /root/SDRPlusPlus/android && gradle --info assembleDebug"
+          run: docker run --name build -v "$GITHUB_WORKSPACE:/root/SDRPlusPlus" android-sdr-kit /bin/bash -l -c "cd /root/SDRPlusPlus/android && gradle --info assembleDebug"
 
         - name: Recover APK
-          working-directory: ${{runner.workspace}}
+          working-directory: ${{runner.temp}}
           run: docker cp build:/root/SDRPlusPlus/android/app/build/outputs/apk/debug/app-debug.apk ./ && mv app-debug.apk sdrpp.apk
 
         - name: Save APK
           uses: actions/upload-artifact@v4
           with:
               name: sdrpp_android
-              path: ${{runner.workspace}}/sdrpp.apk
+              path: ${{runner.temp}}/sdrpp.apk
 
     create_full_archive:
         needs: [
@@ -666,18 +663,6 @@ jobs:
             name: sdrpp_all
             path: sdrpp_all/
 
-    update_nightly_release:
-        needs: [create_full_archive]
-        runs-on: ubuntu-latest
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-
-        steps:
-        - name: Download All Builds
-          uses: actions/download-artifact@v4
-
-        - name: Update Nightly
-          run: gh release upload nightly sdrpp_all/* -R ${{github.repository}} --clobber
-
     check_spelling:
         runs-on: ubuntu-latest
 
@@ -688,7 +673,7 @@ jobs:
           run: sudo apt update -y && sudo apt install -y codespell
         
         - name: Running codespell
-          run: cd $GITHUB_WORKSPACE && codespell -q 2 || true
+          run: cd "$GITHUB_WORKSPACE" && codespell -q 2 || true
 
     check_formatting:
         runs-on: ubuntu-latest
@@ -697,4 +682,4 @@ jobs:
         - uses: actions/checkout@v4
         
         - name: Run check_clang_format
-          run: cd $GITHUB_WORKSPACE && chmod +x ./scripts/check_clang_format.sh && ./scripts/check_clang_format.sh || true
+          run: cd "$GITHUB_WORKSPACE" && chmod +x ./scripts/check_clang_format.sh && ./scripts/check_clang_format.sh || true

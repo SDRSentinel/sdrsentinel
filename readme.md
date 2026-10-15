@@ -213,9 +213,13 @@ SDRSentinel uses **vcpkg manifest mode** (`vcpkg.json`) as its primary cross-pla
 ### CI/CD Packages & Releases
 
 Automated multi-platform packaging runs via GitHub Actions (`.github/workflows/package_builds.yml`):
-* **Windows:** Complete `.zip` distribution with all DLLs and runtime dependencies (`sdrsentinel_windows_x64.zip`).
-* **macOS:** Universal `.zip` containing self-contained `SDRSentinel.app` bundle for Apple Silicon and Intel.
+* **Windows:** `.zip` distribution with the built modules and their runtime dependencies (`sdrsentinel_windows_x64.zip`).
+* **macOS:** Separate Apple Silicon (`arm64`) and Intel (`x86_64`) archives containing a self-contained `SDRSentinel.app` bundle, signed ad hoc.
 * **Ubuntu:** Native `.deb` packages for Ubuntu 24.04 (Noble) and Ubuntu 22.04 (Jammy).
+
+Every package build runs the available SDRSentinel CTest suites before uploading its artifact. Ubuntu also verifies the PDW/HDF5 round trip and installs its package for a startup check. A `v` tag matching `core/src/version.h` publishes the five packages and `SHA256SUMS` only after every platform succeeds. The manifest version must match the application version. See [the release procedure](docs/RELEASING.md) for repository permissions, local checks, and publishing commands.
+
+The broader upstream platform matrix in `build_all.yml` is available through **Run workflow** as **Extended Platform Builds (manual)**. It does not update the inherited nightly release.
 
 ### Packaging & Maintenance Tooling
 

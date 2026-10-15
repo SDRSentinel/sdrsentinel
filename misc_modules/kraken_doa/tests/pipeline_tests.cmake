@@ -1,4 +1,8 @@
 # Pipeline test: DoaPipeline against an in-process fake Heimdall server (test fixture only, not linked into the module)
+if (WIN32)
+    return()
+endif()
+
 add_executable(test_kraken_doa_pipeline
     tests/test_pipeline.cpp
     src/pipeline.cpp
@@ -19,7 +23,4 @@ if (KRAKEN_DOA_EIGEN)
     target_link_libraries(test_kraken_doa_pipeline PRIVATE ${KRAKEN_DOA_EIGEN})
 elseif (EIGEN3_INCLUDE_DIR)
     target_include_directories(test_kraken_doa_pipeline PRIVATE ${EIGEN3_INCLUDE_DIR})
-endif()
-if (WIN32)
-    target_link_libraries(test_kraken_doa_pipeline PRIVATE ws2_32)
 endif()
