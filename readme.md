@@ -1,539 +1,174 @@
-# SDR++, The bloat-free SDR software<br>
+# SDRSentinel
 
-About this fork [details](https://github.com/Zaryob/SDRPlusPlus#about-this-fork)
+**Advanced Passive RF Signal Characterization, Pulse Analysis (PDW), and Direction Finding Suite**  
+*Built on the high-performance, modular [SDR++](https://github.com/AlexandreRouma/SDRPlusPlus) engine.*
 
-![Screenshot](https://i.imgur.com/Ter2MQJ.png)
-SDR++ is a cross-platform and open source SDR software with the aim of being bloat free and simple to use.
+---
 
-![Build](https://github.com/AlexandreRouma/SDRPlusPlus/workflows/Build%20Binaries/badge.svg)
+## About SDRSentinel and Heritage
 
-* [Patreon](https://patreon.com/ryzerth)
-* [Discord Server](https://discord.gg/aFgWjyD)
-* [Reddit](https://www.reddit.com/r/sdrpp/)
-* IRC: `#sdrpp` ([libera.chat](https://libera.chat)) __**NO LONGER ACTIVE, JOIN DISCORD INSTEAD**__
+**SDRSentinel** is an extended, specialized distribution of **SDR++** designed for passive RF spectrum surveillance, electronic intelligence (ELINT / EW), radar pulse characterization, and coherent multi-channel Direction of Arrival (DOA) estimation.
 
-## Features
+SDR++ (originally authored by Alexandre Rouma and contributors) provides an ultra-lightweight, modular, and bloat-free SDR receiver foundation with broad hardware support. SDRSentinel preserves full backward compatibility with SDR++ sources and signal processing modules while integrating native, high-performance C++17 DSP pipelines that eliminate the Python and runtime overhead typical of GNU Radio workflows (`gr-pdw`, `gr-doa`).
 
-* Multi VFO
-* Wide hardware support (both through SoapySDR and dedicated modules)
-* SIMD accelerated DSP
-* Cross-platform (Windows, Linux, MacOS and BSD)
-* Full waterfall update when possible. Makes browsing signals easier and more pleasant
-* Modular design (easily write your own plugins)
+> [!NOTE]
+> **Preserved SDR++ Documentation:**  
+> The original SDR++ README, installation instructions, full contributor list, and community links are preserved in [README_SDRPlusPlus.md](README_SDRPlusPlus.md).
 
-# Installing
+---
 
-## Nightly Builds
+## Key Features
 
-Nightly builds contain the very latest features and bugfixes. They are usually just stable as [normal releases](https://github.com/AlexandreRouma/SDRPlusPlus/releases) but are available basically minutes to hours after a change has been pushed to the code.
+### 1. Real-Time Radar Pulse Characterization (`rf_tools`)
+* **Dynamic Energy Detection:** Low-latency pulse detector featuring single-pole exponential moving average (EMA) noise floor tracking with 3 dB hysteresis to eliminate false boundary splits.
+* **Precise Parameter Extraction (PDW):**
+  * Time of Arrival (TOA) and Pulse Width (PW) with sample-accurate bounds.
+  * Peak and average pulse power (dBFS) and SNR relative to the pre-pulse noise floor.
+  * Sub-bin carrier frequency estimation using zero-padded FFTW3 and 3-point parabolic peak interpolation.
+* **Calibrated RF Power (dBm):** Embedded empirical GTRI power calibration tables from `gr-pdw` for Ettus USRP B210 (70 MHz – 6.0 GHz, supporting RX2 and TX/RX ports). Clear visual notifications when uncalibrated sources are connected.
 
-You can download them [here](https://www.sdrpp.org/nightly). It'll redirect you to the latest nightly on GitHub, scroll down to "Artifacts" and click on the version for your OS.
+### 2. PRI Analysis & Emitter Deinterleaving
+* **Statistical PRI Clustering:** Automatically categorizes pulse trains into **Constant**, **Stagger**, and **Jitter** classes based on coefficient of variation and density clustering.
+* **Live Histograms:** Interactive ImGui distribution plots for Pulse Repetition Interval (PRI), Pulse Width (PW), and frequency offset ($\Delta f$).
+* **Multi-Track Emitter Tracker:** Groups intercepted pulses into distinct emitter tracks based on frequency and duration tolerances.
 
-GitHub currently requires an account for the files to be downloadable so make sure you are logged in.
+### 3. Intra-Pulse Modulation Analysis (MOP Scope)
+* **Signal Inspector:** Detailed time-domain envelope ($I$, $Q$), instantaneous frequency trajectory, and Short-Time Fourier Transform (STFT) spectrogram.
+* **Chirp Matched Filter (Pulse Compression):**
+  * Live radar pulse compression engine supporting Linear Frequency Modulation (LFM).
+  * Windowing functions: Rectangular, Hamming, and Hann for sidelobe suppression.
+  * Real-time readouts for compression ratio, SNR processing gain, and Peak Sidelobe Ratio (PSLR).
+  * Executed on the GUI thread to guarantee thread safety and prevent DSP thread stalls.
 
-## Windows
+### 4. Coherent Multi-Channel Direction Finding (`kraken_doa`)
+* **KrakenSDR Heimdall Client:** High-speed native TCP client connecting directly to the Heimdall DAQ server (port 5000 for coherent IQ data, port 5001 for remote control).
+* **Frame Synchronization Gating:** Strict filtering ensures DOA estimates are derived **only** from valid DATA frames with verified sample delay and phase synchronization (`delay_sync` and `iq_sync` flags).
+* **Super-Resolution Algorithms:**
+  * **Bartlett** (conventional beamformer)
+  * **Capon** (Minimum Variance Distortionless Response - MVDR)
+  * **MUSIC** (Multiple Signal Classification)
+* **Array Geometries:** Supports Uniform Circular Arrays (UCA, 0°–360° unambiguous coverage) and Uniform Linear Arrays (ULA).
+* **Live Visualizer:** Real-time polar compass, spatial pseudo-spectrum, peak quality metric, eigenvalue decomposition display, and compass offset correction.
 
-Download the latest release from [the Releases page](https://github.com/AlexandreRouma/SDRPlusPlus/releases) and extract to the directory of your choice.
+### 5. Scalar S21 & Resonator Q-Factor Analysis
+* **Touchstone & CSV Import:** Ingests S21 magnitude traces from external vector network analyzers (NanoVNA, `.s2p` files in RI/MA/DB formats, or CSV).
+* **Live Receiver Scalar Sweep:** Performs $|S_{21}|$ sweeps using any SDR++ receiver paired with a tracking generator or broadband noise source (Thru $\rightarrow$ DUT $\rightarrow$ Noise Floor normalization).
+* **Rigorous Validation:** Flags fits as `[NOT VALIDATED]` unless adequate dynamic range ($\ge 20\text{ dB}$), noise floor margins, and sampling point densities across the $-3\text{ dB}$ dip are satisfied.
 
-To create a desktop shortcut, rightclick the exe and select `Send to -> Desktop (create shortcut)`, then, rename the shortcut on the desktop to whatever you want.
+### 6. High-Throughput Binary Streaming & gr-pdw / SigMF Export
+* **Continuous Streaming (`.pdwbin`):** Zero-copy binary logging with microsecond-accurate time bases and true sample rates.
+* **gr-pdw HDF5 Compatibility:** Automated Python conversion tool ([`tools/read_sdrpp_pdw.py`](misc_modules/rf_tools/tools/read_sdrpp_pdw.py)) maps `.pdwbin` captures directly to `gr-pdw` HDF5 schemas.
+* **Standards Support:** Full exports to CSV, JSON session dumps, and SigMF recording metadata.
 
-## Linux
+### 7. Enhanced UI & Workflow
+* **ImGui Docking System:** Modular, detachable dock panels with persistent layout configuration across restarts.
+* **Waterfall Click Guard:** Transparent mouse handling prevents accidental VFO and spectrum re-tuning while interacting with floating windows.
+* **Full Hardware Support:** Complete driver compatibility with RTL-SDR, HackRF, Airspy, BladeRF, LimeSDR, PlutoSDR, USRP, HydraSDR, and SoapySDR.
 
-### Debian-based (Ubuntu, Mint, etc)
+---
 
-**Warning: DO NOT** use the `sdrpp` package from the package manager. The package is incompete and incompatible with all official and out-of-tree modules.
+## Architecture Overview
 
-Download the latest release from [the Releases page](https://github.com/AlexandreRouma/SDRPlusPlus/releases) and extract to the directory of your choice.
+```mermaid
+flowchart TD
+    subgraph SDR_Core ["SDR++ Core & Front-End"]
+        Hardware["SDR Hardware / Multi-Channel Array"] --> Source["Source Stream"]
+        Source --> MainVFO["Spectrum & Waterfall Display"]
+        Source --> DedicatedVFO["rf_tools Independent VFO"]
+    end
 
-Then, use apt to install it:
+    subgraph Pulse_Pipeline ["Pulse Characterization Pipeline (rf_tools)"]
+        DedicatedVFO --> Detector["PulseDetector (Noise Tracking + Hysteresis)"]
+        Detector --> Extractor["PulseExtractor (FFTW3 Sub-Bin Fit)"]
+        Extractor --> PowerCal["USRP B210 Power Calibration"]
+        PowerCal --> PDWTable["Live PDW Table & Binary Logger (.pdwbin)"]
+        PDWTable --> PRI["PRIAnalyzer (Stagger / Jitter Clustering)"]
+        PDWTable --> MOP["ScopePanel (Matched Filter & Chirp Compression)"]
+    end
 
-```sh
-sudo apt install path/to/the/sdrpp_debian_amd64.deb
+    subgraph DOA_Pipeline ["Coherent DOA Pipeline (kraken_doa)"]
+        Kraken["KrakenSDR DAQ Server"] -- "TCP 5000 / 5001" --> HeimdallClient["Heimdall Protocol Client"]
+        HeimdallClient --> FrameGating{"Sync Flags Check"}
+        FrameGating -- "Valid DATA" --> Channelizer["Channel Selection & Squelch"]
+        Channelizer --> Covariance["Spatial Covariance Accumulator (Eigen3)"]
+        Covariance --> EVD["Hermitian Eigen-decomposition"]
+        EVD --> MUSIC["Bartlett / Capon / MUSIC Engine"]
+        MUSIC --> CompassUI["Polar Bearing & Spectrum Display"]
+    end
 ```
 
-**IMPORTANT: You must install the drivers for your SDR. Follow instructions from your manufacturer as to how to do this on your particular distro.**
+---
 
-### Arch-based
+## Documentation
 
-Install from source following the instructions below.
+Comprehensive technical specifications and operating instructions are provided in the [`docs/`](docs/) directory:
 
-**WARNING: The sdrpp-git AUR package is no longer official, it is not recommended to use it.**
+| Document | Title & Description |
+|---|---|
+| [**SDRPP-RF-DOC-00**](docs/00_master_thesis_passive_rf_analysis_roadmap.md) | **Master Specification & Theoretical Roadmap:** Academic background, mathematical formulations (MUSIC, Root-MUSIC, CRLB), and verification methodology. |
+| [**SDRPP-RF-DOC-04**](docs/04_kullanim_kilavuzu.md) | **User Manual & Hardware Guide:** Step-by-step setup, RTL-SDR / B210 operations, KrakenSDR network topology, and troubleshooting. |
+| [**ROADMAP.md**](ROADMAP.md) | **Implementation Roadmap & Audit Log:** Integration audit results, hardware benchmarks, and future milestones. |
+| [**HEIMDALL_PROTOCOL.md**](misc_modules/kraken_doa/HEIMDALL_PROTOCOL.md) | **KrakenSDR Protocol Specification:** Wire protocol documentation for TCP 5000 IQ frames and TCP 5001 control. |
+| [**README_SDRPlusPlus.md**](README_SDRPlusPlus.md) | **Original SDR++ Readme:** Original installation instructions, platform-specific build instructions, and credits. |
 
-### Other
+---
 
-There are currently no existing packages for other distributions, for these systems you'll have to [build from source](https://github.com/AlexandreRouma/SDRPlusPlus#building-on-linux--bsd).
+## Building from Source
 
-## MacOS
+### Dependencies
 
-Download the app bundle from the latest [nightly build](https://www.sdrpp.org/nightly)
+* **C++ Compiler:** C++17 compatible (GCC 9+, Clang 10+, MSVC 2019+)
+* **CMake:** Version 3.13 or newer
+* **Build System:** Ninja (recommended) or Make
+* **Core Libraries:** `fftw3f`, `eigen3`, `glfw3`, `zstd`, `libusb`
+* **Audio Backends:** `portaudio` or `rtaudio`
 
-## BSD
+### Quick Build (macOS / Linux)
 
-There are currently no BSD packages, refer to [Building on Linux / BSD](https://github.com/AlexandreRouma/SDRPlusPlus#building-on-linux--bsd) for instructions on building from source.
+```bash
+# 1. Clone the repository
+git clone https://github.com/Zaryob/SDRPlusPlus.git SDRSentinel
+cd SDRSentinel
 
-# Building on Windows
+# 2. Configure build with rf_tools and kraken_doa enabled
+cmake -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DOPT_BUILD_RF_TOOLS=ON \
+    -DOPT_BUILD_KRAKEN_DOA=ON
 
-The preferred IDE is [VS Code](https://code.visualstudio.com/) in order to have similar development experience across platforms and to build with CMake using the command line.
-
-## Install dependencies
-
-* [cmake](https://cmake.org)
-* [vcpkg](https://vcpkg.io)
-* [PothosSDR](https://github.com/pothosware/PothosSDR) (This will install libraries for most SDRs. You have to install it in `C:/Program Files/PothosSDR`)
-* [RtAudio](https://www.music.mcgill.ca/~gary/rtaudio/) (You have to build and install it in `C:/Program Files (x86)/RtAudio/`)
-
-After this, install the following dependencies using vcpkg:
-
-* fftw3
-* glfw3
-* zstd
-
-You are probably going to build in 64 bit so make sure vcpkg installs the correct versions using `.\vcpkg.exe install <package>:x64-windows`
-
-## Building using the command line
-
-**IMPORTANT:** Replace `<vcpkg install directory>` with vcpkg's install directory.
-
+# 3. Compile
+ninja -C build
 ```
-mkdir build
+
+### Running Test Suites
+
+SDRSentinel includes a comprehensive automated test suite for DSP and protocol validation:
+
+```bash
 cd build
-cmake .. "-DCMAKE_TOOLCHAIN_FILE=<vcpkg install directory>/scripts/buildsystems/vcpkg.cmake" -G "Visual Studio 16 2019"
-cmake --build . --config Release
+
+# Run pulse detection & parameter extraction tests
+./misc_modules/rf_tools/test_rf_tools_pulse_detector
+./misc_modules/rf_tools/test_root_dev_integration
+./misc_modules/rf_tools/test_rf_tools_resonator
+
+# Run KrakenSDR Heimdall protocol and DOA DSP tests
+./misc_modules/kraken_doa/test_kraken_heimdall_header
+./misc_modules/kraken_doa/test_kraken_heimdall_client
+./misc_modules/kraken_doa/test_kraken_doa_dsp
+./misc_modules/kraken_doa/test_kraken_doa_pipeline
+
+# Run Python PDW binary-to-HDF5 roundtrip verification
+uv run --no-project --with numpy --with h5py python ../misc_modules/rf_tools/tests/test_pdw_roundtrip.py ../test_output/pdw_test.pdwbin
 ```
 
-## Running for development
-
-### Create a new configuration root directory
-
-```bat
-./create_root.bat
-```
-
-This will create the `root_dev` directory that will be used to save the configs of sdrpp and the modules.
-
-You will next need to edit the `root_dev/config.json` file to point to the modules that were built. If the file is missing in your folder run the application once and it will create one with default value -- see later on how to run the application.
-
-### Run SDR++ from the command line
-
-From the top directory, you can simply run:
-
-```bat
-./build/Release/sdrpp.exe -r root_dev -c
-```
-
-Or, if you wish to run from the build directory e.g. `build/Release` and adapt the relative path to the `root_dev` folder:
-
-```bat
-./sdrpp.exe -r ../../root_dev -c
-```
-
-The optional `-c` argument is for keeping the console active in order to see the error messages.
-
-Because all the paths are relative, for the rest of the command line instructions we are going to assume you are running from the top directory using the former command.
-As mentioned previously you need to edit `root_dev/config.json` to add the modules that were built. From the default configuration file you need to add the paths in the `modules` section. Add to this list all the modules you wish to use.
-
-```json
-...
-"modules": [
-    "./build/radio/Release/radio.dll",
-    "./build/recorder/Release/recorder.dll",
-    "./build/rtl_tcp_source/Release/rtl_tcp_source.dll",
-    "./build/audio_sink/Release/audio_sink.dll"
-]
-...
-```
-
-You also need to change the location of the resource and module directories, for development, I recommend:
-
-```json
-...
-"modulesDirectory": "root_dev/modules",
-...
-"resourcesDirectory": "root_dev/res",
-...
-```
-
-Remember that these paths will be relative to the run directory.
-
-## Installing SDR++
-
-If you choose to run SDR++ for development, you do not need this step.
-First, copy over the exe and DLLs from `build/Release/` to `root_dev`.
-
-Next you need to copy over all the modules that were compiled. To do so, copy the DLL file of the module (located in its build folder given below) to the `root_dev/modules` directory and other DLLs (that do not have the exact name of the module) to the `root_dev` directory.
-
-The modules built will be some of the following (Repeat the instructions above for all you wish to use):
-
-* `build/radio/Release/`
-* `build/recorder/Release/`
-* `build/rtl_tcp_source/Release/`
-* `build/spyserver_source/Release/`
-* `build/airspyhf_source/Release/`
-* `build/plutosdr_source/Release/`
-* `build/audio_sink/Release/`
-
-# Building on Linux / BSD
-
-## Select which modules you wish to build
-
-Depending on which module you want to build, you will need to install some additional dependencies.
-Please refer to the module list table further down in this readme for the names, dependencies and build options of each module.
-
-The build options are then passed to the cmake command as such `cmake .. -DOPTION_NAME_HERE=ON -DANOTHER_OPTION_HERE=OFF` etc...
-
-## Install dependencies
-
-* cmake
-* fftw3
-* glfw
-* libvolk
-* zstd
-
-Next install dependencies based on the modules you wish to build (See previous step)
-
-Note: make sure you're using GCC 8 or later as older versions do not have `std::filesystem` built-in.
-
-## Building
-
-replace `<N>` with the number of threads you wish to use to build
-
-```sh
-mkdir build
-cd build
-cmake ..
-make -j<N>
-```
-
-## Create a new root directory
-
-```sh
-sh ./create_root.sh
-```
-
-## Running for development
-
-If you wish to install SDR++, skip to the next step
-
-First run SDR++ from the build directory to generate a default config file
-
-```
-./sdrpp -r ../root_dev/
-```
-
-Then, you will need to edit the `root_dev/config.json` file to point to the modules that were built. Here is an example of what it should look like:
-
-```json
-...
-"modules": [
-    "./build/radio/radio.so",
-    "./build/recorder/recorder.so",
-    "./build/rtl_tcp_source/rtl_tcp_source.so",
-    "./build/audio_sink/audio_sink.so"
-]
-...
-```
-
-Note: You can generate this list automatically by running `find . | grep '\.so' | sed 's/^/"/' | sed 's/$/",/' | sed '/sdrpp_core.so/d'` in the build directory.
-
-You also need to change the location of the resource and module directories, for development, I recommend:
-
-```json
-...
-"modulesDirectory": "./root_dev/modules",
-...
-"resourcesDirectory": "./root_dev/res",
-...
-```
-
-Remember that these paths will be relative to the run directory.
-
-Of course, remember to add entries for all modules that were built and that you wish to use.
-
-Next, from the top directory, you can simply run:
-
-```
-./build/sdrpp -r root_dev
-```
-
-Or, if you wish to run from the build directory, you will need to correct the directories in the config.json file, and then run:
-
-```
-./sdrpp -r ../root_dev
-```
-
-## Installing SDR++
-
-To install SDR++, run the following command in your ``build`` folder:
-
-```sh
-sudo make install
-```
-
-# Building on MacOS
-
-Warning: This is not for the faint of heart and the instructions are mostly untested. It is recommended to use the [nightly builds](https://www.sdrpp.org/nightly) instead.
-
-## Install dependencies
-
-The dependencies are exactly the same as for linux, see that section for the core dependencies as well as the module list for the per-module dependencies.
-You will need to install the dependencies using Homebrew.
-
-Make sure to install portaudio as it'll be needed later.
-
-An example install command would be:
-
-```sh
-brew install libusb fftw glfw airspy airspyhf portaudio hackrf rtl-sdr libbladerf codec2 zstd volk
-pip3 install mako
-```
-
-## Build
-
-You will need a few special cmake argument on top of the linux ones. You will need to enable the portaudio sink modules `-DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON` and disable the usual rtaudio sink `-DOPT_BUILD_AUDIO_SINK=OFF` as well as the option to tell SDR++ that it will run as a MacOS bundle `-DUSE_BUNDLE_DEFAULTS=ON`. On MacOS versions older than Catalina (10.15), you will also need to use the internal std::filesystem as the OS can't provide it `-DOPT_OVERRIDE_STD_FILESYSTEM=ON`.
-
-Here is an example of build commands that will build almost all modules at the time of writing. You can always check the CI scripts for the latest arguments just in case but this should work. From the top of the SDRPlusPlus directory:
-
-```sh
-mkdir build
-cd build
-cmake .. -DOPT_BUILD_SOAPY_SOURCE=OFF -DOPT_BUILD_BLADERF_SOURCE=ON -DOPT_BUILD_AUDIO_SOURCE=OFF -DOPT_BUILD_AUDIO_SINK=OFF -DOPT_BUILD_PORTAUDIO_SINK=ON -DOPT_BUILD_NEW_PORTAUDIO_SINK=ON -DOPT_BUILD_M17_DECODER=ON -DUSE_BUNDLE_DEFAULTS=ON -DCMAKE_BUILD_TYPE=Release
-make -j<N>
-```
-
-## Create bundle and install
-
-From the top of the SDRPlusPlus directory:
-
-```sh
-sh make_macos_bundle.sh ./build ./SDR++.app
-```
-
-This will create a `SDR++.app` bundle that you can instal like any other MacOS app by dragging it into Applications.
-
-# About this fork
-
-This fork is a personal project to add features and fix bugs that I find in the original project. I will try to keep 
-it up to date with the original project, but I can't guarantee that I will be able to do so. I will also try to 
-keep the changes as minimal as possible, so that it is easy to merge them back into the original project.
-
-In this fork I mainly implement dock layout to the application, so that some sinks seem need a lot of space which 
-couldn't providable via Menu bar. 
-
-## About Docking Layout
-
-In ImGui, Docking mechanism is not stable as it is still in beta. So, I have to use the beta version of ImGui.
-I implemented docking layout save and load mechanism to the application. So, you can save your layout and load it
-later.
-
-## Other Modules
-Other module changes: 
-
-* In frequency manager:
-  - I added a feature to colorize the frequency list based on the frequency.
-  - I added right click menu to the frequency list to add a new frequency.
-
-* In kraken_doa (`misc_modules/kraken_doa`):
-  - Direction finding (Bartlett, Capon, MUSIC; circular or linear array) from a KrakenSDR through its Heimdall DAQ over TCP. Shows only real, synchronized frames; see the module README. Not yet validated on real hardware.
-
-* In rf_tools (`misc_modules/rf_tools`):
-  - Radar / EW analysis suite: B210 calibration data and HDF5 layout from `gr-pdw` (see the module README for credits and licenses).
-  - Real-time pulse detection (noise margin threshold with hysteresis) and PDW extractor with USRP B210 power calibration (70 MHz - 6 GHz).
-  - High-speed binary `.pdwbin` streaming and Python HDF5 converter using the gr-pdw dataset names.
-  - Direction finding is in the `kraken_doa` module and needs a KrakenSDR (coherent 5-channel receiver).
-  - Intra-pulse Modulation on Pulse (MOP) analysis (LFM chirp slopes, Barker codes, STFT spectrogram).
-  - Live Chirp Matched Filter & pulse compression visualizer in ScopePanel (compressed envelope, -3 dB width, Hamming/Hann sidelobe suppression, PSLR readout).
-  - Resonator analysis of an S21 magnitude trace (synthetic sweep only; width-based Q_L, Q_i, Q_c estimate).
-
-
-# Module List
-
-Not all modules are built by default. I decided to disable the build of those with large libraries, libraries that can't be installed through the package manager (or pothos) and those that are still in beta.
-Modules in beta are still included in releases for the most part but not enabled in SDR++ (need to be instantiated).
-
-## Sources
-
-| Name                 | Stage      | Dependencies      | Option                         | Built by default| Built in Release        | Enabled in SDR++ by default |
-|----------------------|------------|-------------------|--------------------------------|:---------------:|:-----------------------:|:---------------------------:|
-| airspy_source        | Working    | libairspy         | OPT_BUILD_AIRSPY_SOURCE        | ✅              | ✅                     | ✅                         |
-| airspyhf_source      | Working    | libairspyhf       | OPT_BUILD_AIRSPYHF_SOURCE      | ✅              | ✅                     | ✅                         |
-| audio_source         | Working    | rtaudio           | OPT_BUILD_AUDIO_SOURCE         | ✅              | ✅                     | ✅                         |
-| bladerf_source       | Working    | libbladeRF        | OPT_BUILD_BLADERF_SOURCE       | ⛔              | ✅ (not Debian Buster) | ✅                         |
-| file_source          | Working    | -                 | OPT_BUILD_FILE_SOURCE          | ✅              | ✅                     | ✅                         |
-| fobossdr_source      | Working    | libfobos          | OPT_BUILD_FOBOSSDR_SOURCE      | ✅              | ✅                     | ✅                         |
-| hackrf_source        | Working    | libhackrf         | OPT_BUILD_HACKRF_SOURCE        | ✅              | ✅                     | ✅                         |
-| harogic_source       | Beta       | htra_api          | OPT_BUILD_HAROGIC_SOURCE       | ⛔              | ⛔                     | ✅                         |
-| hermes_source        | Beta       | -                 | OPT_BUILD_HERMES_SOURCE        | ✅              | ✅                     | ✅                         |
-| kcsdr_source         | Unfinished | libkcsdr          | OPT_BUILD_KCSDR_SOURCE         | ⛔              | ⛔                     | ⛔                         |
-| limesdr_source       | Working    | liblimesuite      | OPT_BUILD_LIMESDR_SOURCE       | ⛔              | ✅                     | ✅                         |
-| network_source       | Beta       | -                 | OPT_BUILD_NETWORK_SOURCE       | ✅              | ✅                     | ✅                         |
-| perseus_source       | Beta       | libperseus-sdr    | OPT_BUILD_PERSEUS_SOURCE       | ⛔              | ✅                     | ✅                         |
-| plutosdr_source      | Working    | libiio, libad9361 | OPT_BUILD_PLUTOSDR_SOURCE      | ✅              | ✅                     | ✅                         |
-| rfnm_source          | Beta       | librfnm           | OPT_BUILD_RFNM_SOURCE          | ⛔              | ✅                     | ✅                         |
-| rfspace_source       | Working    | -                 | OPT_BUILD_RFSPACE_SOURCE       | ✅              | ✅                     | ✅                         |
-| rtl_sdr_source       | Working    | librtlsdr         | OPT_BUILD_RTL_SDR_SOURCE       | ✅              | ✅                     | ✅                         |
-| rtl_tcp_source       | Working    | -                 | OPT_BUILD_RTL_TCP_SOURCE       | ✅              | ✅                     | ✅                         |
-| sdrplay_source       | Working    | SDRplay API       | OPT_BUILD_SDRPLAY_SOURCE       | ⛔              | ✅                     | ✅                         |
-| sdrpp_server_source  | Working    | -                 | OPT_BUILD_SDRPP_SERVER_SOURCE  | ✅              | ✅                     | ✅                         |
-| soapy_source         | Deprecated | soapysdr          | OPT_BUILD_SOAPY_SOURCE         | ⛔              | ⛔                     | ⛔                         |
-| spectran_source      | Unfinished | RTSA Suite        | OPT_BUILD_SPECTRAN_SOURCE      | ⛔              | ⛔                     | ⛔                         |
-| spectran_http_source | Beta       | -                 | OPT_BUILD_SPECTRAN_HTTP_SOURCE | ✅              | ✅                     | ✅                         |
-| spyserver_source     | Working    | -                 | OPT_BUILD_SPYSERVER_SOURCE     | ✅              | ✅                     | ✅                         |
-| usrp_source          | Beta       | libuhd            | OPT_BUILD_USRP_SOURCE          | ⛔              | ⛔                     | ✅                         |
-
-## Sinks
-
-| Name               | Stage      | Dependencies | Option                       | Built by default| Built in Release | Enabled in SDR++ by default |
-|--------------------|------------|--------------|------------------------------|:---------------:|:----------------:|:---------------------------:|
-| android_audio_sink | Working    | -            | OPT_BUILD_ANDROID_AUDIO_SINK | ⛔              | ✅              | ✅ (Android only)          |
-| audio_sink         | Working    | rtaudio      | OPT_BUILD_AUDIO_SINK         | ✅              | ✅              | ✅                         |
-| network_sink       | Working    | -            | OPT_BUILD_NETWORK_SINK       | ✅              | ✅              | ✅                         |
-| new_portaudio_sink | Working    | portaudio    | OPT_BUILD_NEW_PORTAUDIO_SINK | ⛔              | ✅              | ⛔                         |
-| portaudio_sink     | Working    | portaudio    | OPT_BUILD_PORTAUDIO_SINK     | ⛔              | ✅              | ⛔                         |
-
-## Decoders
-
-| Name                | Stage      | Dependencies | Option                        | Built by default| Built in Release | Enabled in SDR++ by default |
-|---------------------|------------|--------------|-------------------------------|:---------------:|:----------------:|:---------------------------:|
-| atv_decoder         | Unfinished | -            | OPT_BUILD_ATV_DECODER         | ⛔              | ⛔              | ⛔                         |
-| dab_decoder         | Unfinished | -            | OPT_BUILD_DAB_DECODER         | ⛔              | ⛔              | ⛔                         |
-| falcon9_decoder     | Unfinished | ffplay       | OPT_BUILD_FALCON9_DECODER     | ⛔              | ⛔              | ⛔                         |
-| kgsstv_decoder      | Unfinished | -            | OPT_BUILD_KGSSTV_DECODER      | ⛔              | ⛔              | ⛔                         |
-| m17_decoder         | Working    | -            | OPT_BUILD_M17_DECODER         | ⛔              | ✅              | ⛔                         |
-| meteor_demodulator  | Working    | -            | OPT_BUILD_METEOR_DEMODULATOR  | ✅              | ✅              | ⛔                         |
-| pager_decoder       | Unfinished | -            | OPT_BUILD_PAGER_DECODER       | ⛔              | ⛔              | ⛔                         |
-| radio               | Working    | -            | OPT_BUILD_RADIO               | ✅              | ✅              | ✅                         |
-| radio               | Unfinished | -            | OPT_BUILD_VOR_RECEIVER        | ⛔              | ⛔              | ⛔                         |
-| weather_sat_decoder | Unfinished | -            | OPT_BUILD_WEATHER_SAT_DECODER | ⛔              | ⛔              | ⛔                         |
-
-## Misc
-
-| Name                | Stage      | Dependencies | Option                      | Built by default | Built in Release | Enabled in SDR++ by default |
-|---------------------|------------|--------------|-----------------------------|:----------------:|:----------------:|:---------------------------:|
-| discord_integration | Working    | -            | OPT_BUILD_DISCORD_PRESENCE  | ✅              | ✅               | ⛔                         |
-| frequency_manager   | Working    | -            | OPT_BUILD_FREQUENCY_MANAGER | ✅              | ✅               | ✅                         |
-| iq_exporter         | Working    | -            | OPT_BUILD_IQ_EXPORTER       | ✅              | ✅               | ⛔                         |
-| kraken_doa          | Beta       | eigen3       | OPT_BUILD_KRAKEN_DOA        | ✅              | ✅               | ⛔                         |
-| recorder            | Working    | -            | OPT_BUILD_RECORDER          | ✅              | ✅               | ✅                         |
-| rf_tools            | Working    | fftw3f         | OPT_BUILD_RF_TOOLS        | ✅              | ✅               | ⛔                         |
-| rigctl_client       | Unfinished | -            | OPT_BUILD_RIGCTL_CLIENT     | ✅              | ✅               | ⛔                         |
-| rigctl_server       | Working    | -            | OPT_BUILD_RIGCTL_SERVER     | ✅              | ✅               | ✅                         |
-| scanner             | Beta       | -            | OPT_BUILD_SCANNER           | ✅              | ✅               | ⛔                         |
-| scheduler           | Unfinished | -            | OPT_BUILD_SCHEDULER         | ⛔              | ⛔               | ⛔                         |
-
-# Troubleshooting
-
-First, please make sure you're running the latest automated build. If your issue is linked to a bug it is likely that is has already been fixed in later releases
-
-## SDR++ crashes then it won't start again no matter what
-
-This is a bug in 1.0.0 that was fixed in 1.0.1
-
-In some cases, if a crash happened while the config was being saved, the config file would be corrupted and SDR++ would refuse to start because of it.
-
-This has now been fixed. If a config file is corrupted it'll just reset it to its default state.
-
-## "hash collision" error when starting
-
-You likely installed the `soapysdr-module-all` package on Ubuntu/Debian. If not it's still a SoapySDR bug caused by multiple soapy modules coming in conflict. Uninstall anything related to SoapySDR then install soapysdr itself and only the soapy modules you actually need.
-
-## "I don't see -insert module name here-, what's going on?"
-
-If the module was included in a later update, it's not enabled in the config. The easiest way to fix this is just to delete the `config.json` file and let SDR++ recreate it (you will lose your setting relating to the main UI like VFO colors, zoom level and theme).
-The best option however is to edit the config file to add an instance of the module you wish to have enabled (see the Module List).
-
-## SDR++ crashes when stopping a RTL-SDR
-
-This is a bug recently introduced by libusb1.4
-To solve, this, simply downgrade to libusb1.3
-
-## SDR++ crashes when starting a HackRF
-
-If you also have the SoapySDR module enabled, this is a bug in libhackrf. It's caused by libhackrf not checking if it's already initialized.
-The solution until a fixed libhackrf version is released is to disable the soapy_source module from SDR++. For this, go into the "Module Manager" menu and click the `-` button next to the row with "soapy_source". After that, restart SDR++.
-
-## Issue not listed here?
-
-If you still have an issue, please open an issue about it or ask on the discord. I'll try to respond as quickly as I can. Please avoid trying to contact me on every platform imaginable thinking I'll respond faster though...
-
-# Contributing
-
-Feel free to submit band plans via the GitHub issue tracker.
-For code changes, please create a feature request instead.
-
-# Credits
-
-## Patrons
-
-* Bob Logan
-* [Christian Häusler](https://github.com/corvus-ch)
-* Croccydile
-* Dale L Puckett (K0HYD)
-* [Daniele D'Agnelli](https://linkedin.com/in/dagnelli)
-* [David Taylor (GM8ARV)](https://twitter.com/gm8arv)
-* D. Jones
-* Dexruus
-* [EB3FRN](https://www.eb3frn.net/)
-* Eric Johnson
-* Ernest Murphy (NH7L)
-* Flinger Films
-* [Frank Werner (HB9FXQ)](https://twitter.com/HB9FXQ)
-* gringogrigio
-* Jandro
-* Jeff Moe
-* Joe Cupano
-* KD1SQ
-* Kezza
-* Krys Kamieniecki
-* Lee Donaghy
-* Lee (KD1SQ)
-* .lozenge. (Hank Hill)
-* Martin Herren (HB9FXX)
-* NeoVilsonWong
-* Nitin (VU2JEK)
-* ON4MU
-* [Passion-Radio.com](https://passion-radio.com/)
-* Paul Maine
-* Peter Betz
-* [Scanner School](https://scannerschool.com/)
-* Scott Palmer
-* [SignalsEverywhere](https://signalseverywhere.com/)
-* Syne Ardwin (WI9SYN)
-* [W4IPA](https://twitter.com/W4IPAstroke5)
-* William Arcand (W1WRA)
-* William Pitchford
-* [Yves Rougy](https://www.twitch.tv/yorzian)
-* [Zipper](https://github.com/reppiZ)
-
-## Contributors
-
-* [Aang23](https://github.com/Aang23)
-* [Alexsey Shestacov](https://github.com/wingrime)
-* [Aosync](https://github.com/aosync)
-* [Benjamin Kyd](https://github.com/benkyd)
-* [Benjamin Vernoux](https://github.com/bvernoux)
-* [Cropinghigh](https://github.com/cropinghigh)
-* [Fred F4EED](http://f4eed.wordpress.com/)
-* [Howard0su](https://github.com/howard0su)
-* John Donkersley
-* [Joshua Kimsey](https://github.com/JoshuaKimsey)
-* [Manawyrm](https://github.com/Manawyrm)
-* [Martin Hauke](https://github.com/mnhauke)
-* [Marvin Sinister](https://github.com/marvin-sinister)
-* [Maxime Biette](https://github.com/mbiette)
-* [Paulo Matias](https://github.com/thotypous)
-* [Raov](https://twitter.com/raov_birbtog)
-* [Cam K.](https://github.com/Starman0620)
-* [Shuyuan Liu](https://github.com/shuyuan-liu)
-* [Syne Ardwin (WI9SYN)](https://esaille.me/)
-* [Szymon Zakrent](https://github.com/zakrent)
-* Youssef Touil
-* [Zimm](https://github.com/invader-zimm)
-
-
-## Libraries used
-
-* [SoapySDR (PothosWare)](https://github.com/pothosware/SoapySDR)
-* [Dear ImGui (ocornut)](https://github.com/ocornut/imgui)
-* [json (nlohmann)](https://github.com/nlohmann/json)
-* [rtaudio](http://www.portaudio.com/)
-* [Portable File Dialogs](https://github.com/samhocevar/portable-file-dialogs)
+---
+
+## License & Credits
+
+* **SDRSentinel** is licensed under the [GNU General Public License v3.0 (GPL-3.0)](license).
+* **SDR++ Base Engine:** Created by Alexandre Rouma and the SDR++ contributor community. Full credits are preserved in [README_SDRPlusPlus.md](README_SDRPlusPlus.md).
+* **PDW & Power Calibration:** Based on algorithms and empirical datasets from [gr-pdw](https://github.com/gtri/gr-pdw) by the Georgia Tech Research Institute (GTRI, GPLv3).
+* **Direction Finding:** Mathematical foundation and steering vector formulations adapted from [gr-doa](https://github.com/EttusResearch/gr-doa) (GPLv3).
+* **KrakenSDR DAQ Client:** Developed in accordance with the open Heimdall DAQ interface by KrakenRF (GPLv3).
+* **Author / Maintainer:** Süleyman Poyraz (`zaryob.dev@gmail.com`).
