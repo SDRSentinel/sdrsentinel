@@ -109,6 +109,8 @@ Comprehensive technical specifications and operating instructions are provided i
 | [**SDRPP-RF-DOC-04**](docs/04_kullanim_kilavuzu.md) | **User Manual & Hardware Guide:** Step-by-step setup, RTL-SDR / B210 operations, KrakenSDR network topology, and troubleshooting. |
 | [**ROADMAP.md**](ROADMAP.md) | **Implementation Roadmap & Audit Log:** Integration audit results, hardware benchmarks, and future milestones. |
 | [**HEIMDALL_PROTOCOL.md**](misc_modules/kraken_doa/HEIMDALL_PROTOCOL.md) | **KrakenSDR Protocol Specification:** Wire protocol documentation for TCP 5000 IQ frames and TCP 5001 control. |
+| [**CONTRIBUTING.md**](CONTRIBUTING.md) | **Contribution Manifesto:** Engineering philosophy inspired by Bevy, accountable code (*hesap verilebilirlik*), and PR standards. |
+| [**AGENTS.md**](AGENTS.md) | **AI Agent Guidelines:** Mandatory commit trailer attribution (`Agent:`), empirical verification, and agentic engineering standards. |
 | [**README_SDRPlusPlus.md**](README_SDRPlusPlus.md) | **Original SDR++ Readme:** Original installation instructions, platform-specific build instructions, and credits. |
 
 ---
